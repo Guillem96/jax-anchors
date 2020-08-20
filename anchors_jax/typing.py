@@ -11,5 +11,3 @@ Image = Union[Tensor, 'Image']
 
 Box = Union[Tensor, List[int], Tuple[int, int, int, int]]
 Boxes = Union[Tensor, List[Box]]
-
-RGBColor = Tuple[int, int, int]

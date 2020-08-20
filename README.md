@@ -30,3 +30,19 @@ denoted as $k$. `...` The k proposals are parameterized relative to k reference 
 in question, and is associated with a scale and aspect
 ratio.  By default we use 3 scales and
 3 aspect ratios, yielding $k = 9$ anchors.
+
+## Examples
+
+```python
+from PIL import Image
+import anchors_jax.faster_rcnn as aj
+import anchors_jax.viz as viz
+
+im = Image.open('images/umbreon.png')
+anchors = aj.generate_anchors(im.size[::-1], stride=stride, **kwargs)
+viz.draw_boxes(im, anchors, 
+               boxes_width=2, 
+               colors=[viz.Color.Red, viz.Color.Green, viz.Color.Blue]).show()
+```
+
+<img src="images/tiled-over-umbreon.png" alt="tiled anchors over umbreon">

@@ -55,13 +55,46 @@ def single_point_anchors(
 def tile_anchors(anchors: Tensor, 
                  image_shape: Tuple[int, int], 
                  stride: int = 1) -> Tensor:
-    pass
+    """
+    Takes a set of anchors located at the origin, and tiles them over a feature
+    map
+
+    Parameters
+    ----------
+    anchors: Tensor of shape [K, 4]
+        Set of starting anchors, usually generated with the function 
+        `single_point_anchors`. Anchors are boxes with the following format
+        [x_min, y_min, x_max, y_max]
+    image_shape: Tuple[int, int]
+        Tuple containing the image dimensions H x W
+    stride: int, default 1
+        Distance in pixels between the anchors centers
+    
+    Returns
+    -------
+    Tensor of shape [N, K, 4]
+        A tensor of boxes of shape [N, K, 4] where N is the number of locations
+        around the feature map (H x W / stride) and K is `anchors.shape[0]`. 
+        Therefore, at each location we have K anchors.
+    """
+    K = anchors.shape[0]
+
+    shifts_x, shifts_y = np.meshgrid(np.arange(0.5, image_shape[1], stride),
+                                     np.arange(0.5, image_shape[0], stride))
+    shifts_x = shifts_x.reshape(-1, 1)
+    shifts_y = shifts_y.reshape(-1, 1)
+
+    shifts = np.concatenate([shifts_x, shifts_y, shifts_x, shifts_y], axis=1)
+    N = shifts.shape[0]
+    tiled_anchors = anchors.reshape(1, K, 4) + shifts.reshape(N, 1, 4)
+    return tiled_anchors
 
 
 def generate_anchors(
         image_shape: Tuple[int, int],
         aspect_ratios: Sequence[float] = (.5, 1., 2.),
-        scales: Sequence[float] = (512**2, 256**2, 128**2)) -> Tensor:
+        scales: Sequence[float] = (512**2, 256**2, 128**2),
+        stride: int = 1) -> Tensor:
     """
     Generate anchors located at the origin, and afterwards tiles the anchors
     all over the feature map shape. The procedure to create those anchors is
@@ -78,7 +111,8 @@ def generate_anchors(
         Different aspect ratios for each anchor
     scales: Sequence[float], default (512**2, 256**2, 128**2)
         Different scales for each anchor.
-
+    stride: int, default 1
+        Distance in pixels between the anchors centers
     Returns
     -------
     Tensor of shape [N, 4]
@@ -87,4 +121,5 @@ def generate_anchors(
         len(aspect_ratios) * len(scales) * H * W
         where H and W are the image height and width respectively
     """
-    return single_point_anchors(aspect_ratios=aspect_ratios, scales=scales)
+    anchors = single_point_anchors(aspect_ratios=aspect_ratios, scales=scales)
+    return tile_anchors(anchors, image_shape, stride=stride)

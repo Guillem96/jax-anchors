@@ -1,17 +1,30 @@
+
+import itertools
+from enum import Enum
 from typing import List, Union
 
 import numpy as onp
 import jax.numpy as np
 
 import PIL
+from PIL import ImageDraw
 
-from anchors_jax.typing import Box, Boxes, Image, RGBColor
+from anchors_jax.typing import Box, Boxes, Image
+
+
+class Color(str, Enum):
+    Red = '#ff0000'
+    Green = '#00ff00'
+    Blue = '#0000ff'
+    Yellow = '#ffff00'
+    Purple = '#ab47bc'
 
 
 def draw_boxes(
         im: Image, 
         boxes: Boxes, 
-        colors: Union[List[RGBColor], RGBColor] = (255, 255, 255)) -> PIL.Image:
+        colors: Union[List[Color], Color] = (255, 255, 255),
+        boxes_width: int = 1) -> PIL.Image:
 
     """
     Parameters
@@ -24,7 +37,9 @@ def draw_boxes(
         colors parameter can be an iterable having the same length as boxes, 
         so each box is drew with the corresponding color or a single color to
         only use the specified one.
-    
+    boxes_width: int, default 1
+        Outline with of the boxes
+
     Returns
     -------
     PIL.Image
@@ -32,13 +47,13 @@ def draw_boxes(
     im = _parse_image(im)
     boxes = _parse_boxes(boxes)
     if not isinstance(colors, list):
-        colors = [colors] * len(boxes)
+        colors = [colors]
     
     draw_im = im.copy()
-    draw = PIL.ImageDraw.Draw(draw_im)
+    draw = ImageDraw.Draw(draw_im)
 
-    for c, b in zip(colors, boxes):
-        draw.rectangle(b, outline=c)
+    for c, b in zip(itertools.cycle(colors), boxes):
+        draw.rectangle(b, outline=c, width=boxes_width)
 
     return draw_im
 
@@ -58,6 +73,8 @@ def _parse_box(box: Box) -> List[int]:
         return box.astype('int32').reshape(-1).tolist()
     elif isinstance(box, tuple):
         return list(box)
+    elif isinstance(box, list):
+        return box
     else:
         raise TypeError(f"Unexpected type {type(box)} for a box")
 
