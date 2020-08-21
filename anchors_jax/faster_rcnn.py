@@ -3,6 +3,8 @@ from typing import Tuple, Sequence
 import jax
 import jax.numpy as np
 
+import anchors_jax.ops as ops
+import anchors_jax.utils as utils
 from anchors_jax.typing import Tensor
 
 
@@ -123,3 +125,120 @@ def generate_anchors(
     """
     anchors = single_point_anchors(aspect_ratios=aspect_ratios, scales=scales)
     return tile_anchors(anchors, image_shape, stride=stride)
+
+
+def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
+    """
+    Assigns a classification label and a regressor to each anchor box.
+
+    Parameters
+    ----------
+    anchors: Tensor of shape [N, 4]
+    boxes: Tensor of shape [M, 4]
+        To work with batches of boxes, use `jax.vmap` decorator as follows:
+        `fn = jax.vmap(rpn_tag_anchors, in_axes=[None, 0])`, note that we do not
+        batch anchors, this is because anchors are always equal along the batch
+    
+    Returns
+    -------
+    Tuple[Tensor, Tensor]
+        First element of the tuple has shape [N, 1] and contains 0 if the anchor
+        does not overlap with any box, 1 if the anchor overlaps with a box or a 
+        -1 if the anchor has to be ignored.
+        This objectness score is computed as specified in FasterRCNN paper:
+        > We assign a positive label to two kinds of anchors: (i) the anchor/anchors 
+          with the highest Intersection-overUnion (IoU) overlap with a 
+          ground-truth box, or (ii) an anchor that has an IoU overlap higher than 0.7
+        The second element of the tuple is a Tensor of shape [N, 4] containing the
+        regressors for each anchor. The regressors are computed with the formulas
+        specified in FasterRCNN paper. Note that the regressors on non-overlaping
+        anchors should be filtered out. The regressors of ignored and negative
+        anchors contains -1 components.
+    """
+    ious = ops.iou(anchors, boxes)
+
+    # Compute positive mask:
+    # - Either anchors with highest overlap with a box, and anchors with an iou 
+    #   larger or equal than 0.7
+    larger_ious = ious >= .7
+
+    higher_than_07 = np.any(larger_ious, axis=-1)
+    higher_than_07 = higher_than_07.astype('float32')
+
+    highest_ious_anchors_idx = ious.T.argmax(-1)
+    highest_ious_anchors = np.zeros((anchors.shape[0]))
+    highest_ious_anchors = jax.ops.index_update(highest_ious_anchors,
+                                                highest_ious_anchors_idx, 1.)
+
+    positive_mask = higher_than_07 + highest_ious_anchors
+    positive_mask = positive_mask.reshape(-1).astype('bool')
+
+    # Compute negative mask, anchors with less than 0.3 iou
+    negative_mask = np.all(ious <= .3)
+
+    # Non used labels are ignored with -1
+    cls_labels = np.zeros((anchors.shape[0], )) - 1 
+    cls_labels = np.where(positive_mask, 1., cls_labels)
+    cls_labels = np.where(negative_mask, 0., cls_labels).reshape(-1, 1)
+
+    # Start with the regressors
+    selected_boxes_idx = larger_ious.argmax(-1)
+    selected_boxes_idx = jax.ops.index_update(
+        selected_boxes_idx, 
+        highest_ious_anchors_idx, # highest_ious_anchors_idx, Contains the max 
+                                  # overlaping anchor idx for each box
+        np.arange(highest_ious_anchors_idx.shape[0]))
+
+    selected_boxes = boxes[selected_boxes_idx]
+    regressors = _compute_regressors(anchors, selected_boxes)
+    
+    # Remove negative and ignored anchors regressors
+    regressors = np.where(negative_mask | (cls_labels == -1), -1, regressors)
+
+    return cls_labels, regressors
+
+
+def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
+    """
+    Corrects the anchors with the predicted regressors
+
+    Parameters
+    ----------
+    anchors: Tensor of shape [N, 4]
+    regressors: Tensor of shape [N, 4]
+
+    Returns
+    -------
+    Tensor of shape [N, 4]
+    """
+    assert anchors.shape[0] == regressors.shape[0]
+    
+    anchors = utils.xyxy_to_cxcywh(anchors)
+
+    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
+    tx, ty, tw, th = np.split(regressors, 4, axis=1)
+
+    x = tx * w_a + x_a
+    y = ty * h_a + y_a
+    w = w_a * np.exp(tw)
+    h = h_a * np.exp(th)
+
+    return utils.cxcywh_to_xyxy(np.concatenate([x, y, w, h], axis=-1))
+
+
+def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
+    assert anchors.shape[0] == boxes.shape[0]
+
+    anchors = utils.xyxy_to_cxcywh(anchors)
+    boxes = utils.xyxy_to_cxcywh(boxes)
+
+    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
+    x_star, y_star, w_star, h_star = np.split(boxes, 4, axis=1)
+
+    # Regressors 
+    tx_star = (x_star - x_a) / w_a
+    ty_star = (y_star - y_a) / h_a
+    tw_star = np.log(w_star / w_a)
+    th_star = np.log(h_star / h_a)
+
+    return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
