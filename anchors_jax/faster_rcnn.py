@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 
 import anchors_jax.ops as ops
-import anchors_jax.utils as utils
+import anchors_jax.boxes as utils
 from anchors_jax.typing import Tensor
 
 
@@ -174,7 +174,7 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
     positive_mask = positive_mask.reshape(-1).astype('bool')
 
     # Compute negative mask, anchors with less than 0.3 iou
-    negative_mask = np.all(ious <= .3)
+    negative_mask = np.all(ious <= .3, axis=-1).reshape(-1)
 
     # Non used labels are ignored with -1
     cls_labels = np.zeros((anchors.shape[0], )) - 1 
@@ -193,7 +193,9 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
     regressors = _compute_regressors(anchors, selected_boxes)
     
     # Remove negative and ignored anchors regressors
-    regressors = np.where(negative_mask | (cls_labels == -1), -1, regressors)
+    regress_ignore = negative_mask | (cls_labels.reshape(-1) == -1.)
+    regress_ignore_idx = regress_ignore.nonzero()
+    regressors = jax.ops.index_update(regressors, regress_ignore_idx, 0.)
 
     return cls_labels, regressors
 
