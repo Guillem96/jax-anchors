@@ -1,7 +1,7 @@
 
 import itertools
 from enum import Enum
-from typing import List, Union
+from typing import Any, List, Union
 
 import numpy as onp
 import jax.numpy as np
@@ -18,11 +18,32 @@ class Color(str, Enum):
     Blue = '#0000ff'
     Yellow = '#ffff00'
     Purple = '#ab47bc'
+    White = '#ffffff'
+
+
+def colored(items: List[Any]) -> List[Color]:
+    """
+    Get a color for each unique element of the list
+
+    Examples
+    --------
+    >>> labels = ['cat', 'dog', 'dog', 'cat']
+    >>> colored(labels)
+    ... ['green', 'red, 'red, 'green']
+    >>> labels = ['cat', 'dog', 'dog', 'cat']
+    >>> colors = colored(labels)
+    >>> draw_boxes(image, labels, colors=colors)
+    """
+    colors = [o.value for o in Color]
+    unique_items = set(items)
+    color_x_label = dict(zip(unique_items, itertools.cycle(colors)))
+    return [color_x_label[o] for o in items]
 
 
 def draw_boxes(
         im: Image, 
         boxes: Boxes, 
+        labels: List[str] = None,
         colors: Union[List[Color], Color] = (255, 255, 255),
         boxes_width: int = 1) -> PIL.Image:
 
@@ -46,13 +67,24 @@ def draw_boxes(
     """
     im = _parse_image(im)
     boxes = _parse_boxes(boxes)
+    
+    if labels is None:
+        labels = [''] * len(boxes)
+
     if not isinstance(colors, list):
         colors = [colors]
     
     draw_im = im.copy()
     draw = ImageDraw.Draw(draw_im)
 
-    for c, b in zip(itertools.cycle(colors), boxes):
+    for c, b, l in zip(itertools.cycle(colors), boxes, labels):
+        if l != '':
+            x1, y1, x2, y2 = b
+            draw.rectangle([x1, y1 - int(im.size[1] * 0.06), 
+                            x2 // 2, y1], fill=c,
+                            outline=c, width=boxes_width)
+            draw.text((x1 + 3, y1 - int(im.size[1] * 0.07)), 
+                    l, fill=Color.White)
         draw.rectangle(b, outline=c, width=boxes_width)
 
     return draw_im

@@ -155,26 +155,8 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
         anchors should be filtered out. The regressors of ignored and negative
         anchors contains -1 components.
     """
-    ious = ops.iou(anchors, boxes)
-
-    # Compute positive mask:
-    # - Either anchors with highest overlap with a box, and anchors with an iou 
-    #   larger or equal than 0.7
-    larger_ious = ious >= .7
-
-    higher_than_07 = np.any(larger_ious, axis=-1)
-    higher_than_07 = higher_than_07.astype('float32')
-
-    highest_ious_anchors_idx = ious.T.argmax(-1)
-    highest_ious_anchors = np.zeros((anchors.shape[0]))
-    highest_ious_anchors = jax.ops.index_update(highest_ious_anchors,
-                                                highest_ious_anchors_idx, 1.)
-
-    positive_mask = higher_than_07 + highest_ious_anchors
-    positive_mask = positive_mask.reshape(-1).astype('bool')
-
-    # Compute negative mask, anchors with less than 0.3 iou
-    negative_mask = np.all(ious <= .3, axis=-1).reshape(-1)
+    anchors_indices = _anchors_indices(anchors, boxes)
+    positive_mask, negative_mask, selected_boxes_idx = anchors_indices
 
     # Non used labels are ignored with -1
     cls_labels = np.zeros((anchors.shape[0], )) - 1 
@@ -182,13 +164,6 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
     cls_labels = np.where(negative_mask, 0., cls_labels).reshape(-1, 1)
 
     # Start with the regressors
-    selected_boxes_idx = larger_ious.argmax(-1)
-    selected_boxes_idx = jax.ops.index_update(
-        selected_boxes_idx, 
-        highest_ious_anchors_idx, # highest_ious_anchors_idx, Contains the max 
-                                  # overlaping anchor idx for each box
-        np.arange(highest_ious_anchors_idx.shape[0]))
-
     selected_boxes = boxes[selected_boxes_idx]
     regressors = _compute_regressors(anchors, selected_boxes)
     
@@ -226,6 +201,99 @@ def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
     h = h_a * np.exp(th)
 
     return utils.cxcywh_to_xyxy(np.concatenate([x, y, w, h], axis=-1))
+
+
+def detect_tag_anchors(anchors: Tensor, 
+                       boxes: Tensor, 
+                       labels: Tensor) -> Tuple[Tensor, Tensor]:
+    """
+    Tags every anchor with the corresponding classification and regression labels
+
+    Note that the labels are numberic and start with 1, the 0 value is reserved
+    by the background or negative anchors.
+
+    Parameters
+    ----------
+    anchors: Tensor of shape [N, 4]
+    
+    boxes: Tensor of shape [M, 4]
+
+    labels: Tensor fo shape [M] or [M, 1]
+
+    Returns
+    -------
+    Tuple[Tensor, Tensor]
+        First element of the tuple has shape [N, 1] and contains 0 if the anchor
+        does not overlap with any box, the overlaping box label if the anchor 
+        overlaps with a box or a -1 if the anchor has to be ignored.
+
+        The second element of the tuple is a Tensor of shape [N, 4] containing the
+        regressors for each anchor. The regressors are computed with the formulas
+        specified in FasterRCNN paper. Note that the regressors on non-overlaping
+        anchors should be filtered out. The regressors of ignored and negative
+        anchors are -1.
+    """
+    assert boxes.shape[0] == labels.reshape(-1).shape[0]
+
+    anchors_indices = _anchors_indices(anchors, boxes)
+    positive_mask, negative_mask, selected_boxes_idx = anchors_indices
+
+    selected_boxes = boxes[selected_boxes_idx]
+    selected_labels = labels[selected_boxes_idx].reshape(-1).astype('float32')
+
+    # Non used labels are ignored with -1
+    cls_labels = np.zeros((anchors.shape[0], )) - 1
+    cls_labels = np.where(positive_mask, selected_labels, cls_labels)
+    cls_labels = np.where(negative_mask, 0., cls_labels).reshape(-1, 1)
+
+    # Start with the regressors
+    regressors = _compute_regressors(anchors, selected_boxes)
+
+    # Remove negative and ignored anchors regressors
+    regress_ignore = negative_mask | (cls_labels.reshape(-1) == -1.)
+    regress_ignore_idx = regress_ignore.nonzero()
+    regressors = jax.ops.index_update(regressors, regress_ignore_idx, 0.)
+
+    return cls_labels, regressors
+
+
+def _anchors_indices(anchors: Tensor, 
+                     boxes: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    ious = ops.iou(anchors, boxes)
+
+    # Compute positive mask:
+    # - Either anchors with highest overlap with a box, and anchors with an iou 
+    #   larger or equal than 0.7
+    larger_ious = ious >= .7
+
+    higher_than_07 = np.any(larger_ious, axis=-1)
+    higher_than_07 = higher_than_07.astype('float32')
+
+    highest_ious_anchors_idx = ious.T.argmax(-1)
+    highest_ious_anchors = np.zeros((anchors.shape[0]))
+    highest_ious_anchors = jax.ops.index_update(highest_ious_anchors,
+                                                highest_ious_anchors_idx, 1.)
+
+    positive_mask = higher_than_07 + highest_ious_anchors
+    positive_mask = positive_mask.reshape(-1).astype('bool')
+
+    # Compute negative mask, anchors with less than 0.3 iou
+    negative_mask = np.all(ious <= .3, axis=-1).reshape(-1)
+
+    # Compute the index to get the selected boxes
+    # First select the boxes with the iou higher than 0.7
+    selected_boxes_idx = larger_ious.argmax(-1)
+
+    # In some occasions an anchor can be attach to multiple boxes or even to 
+    # no box, therefore we update the previous each index so every anchor is 
+    # always assigned to a box
+    selected_boxes_idx = jax.ops.index_update(
+        selected_boxes_idx, 
+        highest_ious_anchors_idx, # highest_ious_anchors_idx, Contains the max 
+                                  # overlaping anchor idx for each box
+        np.arange(highest_ious_anchors_idx.shape[0]))
+
+    return positive_mask, negative_mask, selected_boxes_idx
 
 
 def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
