@@ -1,4 +1,4 @@
-from typing import List, Union, Tuple
+from typing import Any, Callable, List, Union, Tuple
 
 import numpy as onp
 import jax.numpy as np
@@ -11,3 +11,9 @@ Image = Union[Tensor, 'Image']
 
 Box = Union[Tensor, List[int], Tuple[int, int, int, int]]
 Boxes = Union[Tensor, List[Box]]
+
+InitFn = Callable[[Tensor, Tuple[int, ...]], Tensor]
+ForwardFn = Callable[[Tensor], Tensor]
+
+Layer = Tuple[InitFn, ForwardFn]
+LayerFactory = Callable[[Any], Layer]
