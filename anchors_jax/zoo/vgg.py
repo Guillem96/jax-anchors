@@ -38,8 +38,8 @@ def _make_layers(cfg, batch_norm: bool = True) -> List[Layer]:
 
 def VGG16(num_classes: int = 1000, 
           include_top: bool = True,
-          pooling: str = 'avg') -> Layer:
-    assert pooling in {'avg', 'max'}
+          pooling: Optional[str] = None) -> Layer:
+    assert pooling in {'avg', 'max', None}
 
     features = _make_layers(_CONF['VGG16'], False)
 
@@ -47,6 +47,8 @@ def VGG16(num_classes: int = 1000,
         vgg = stax.serial(*features, nn.layers.GlobalAveragePooling())
     elif not include_top and pooling == 'max':
         vgg = stax.serial(*features, nn.layers.GlobalMaxPooling())
+    elif not include_top and pooling is None:
+        vgg = stax.serial(*features)
     else:
         classifier = [
             stax.Flatten,
@@ -55,11 +57,11 @@ def VGG16(num_classes: int = 1000,
             stax.Dense(num_classes), stax.Softmax
         ]
         vgg = stax.serial(*features, *classifier)
-    
+
     return vgg
 
 
-def VGG16_imagenet_weights():
+def VGG16_imagenet_weights(include_top: bool = True):
     from tensorflow.keras.applications import VGG16
     cfg = _CONF['VGG16']
     keras_vgg = VGG16(weights='imagenet', include_top=True)
@@ -75,10 +77,11 @@ def VGG16_imagenet_weights():
             params.append(tuple()) # Conv activation
             i += 2
 
-    params.append(tuple()) # Flatten
-    for it in range(i, len(keras_vgg.variables), 2):
-        params.append(tuple([jax.device_put(keras_vgg.variables[it].numpy())
-                             for it in range(it, it + 2)]))
-        params.append(tuple())
+    if include_top:
+        params.append(tuple()) # Flatten
+        for it in range(i, len(keras_vgg.variables), 2):
+            params.append(tuple([jax.device_put(keras_vgg.variables[it].numpy())
+                                for it in range(it, it + 2)]))
+            params.append(tuple())
 
     return params

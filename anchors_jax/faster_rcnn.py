@@ -81,8 +81,8 @@ def tile_anchors(anchors: Tensor,
     """
     K = anchors.shape[0]
 
-    shifts_x, shifts_y = np.meshgrid(np.arange(0.5, image_shape[1], stride),
-                                     np.arange(0.5, image_shape[0], stride))
+    shifts_x, shifts_y = np.meshgrid(np.arange(0.5, image_shape[1]) * stride,
+                                     np.arange(0.5, image_shape[0]) * stride)
     shifts_x = shifts_x.reshape(-1, 1)
     shifts_y = shifts_y.reshape(-1, 1)
 
