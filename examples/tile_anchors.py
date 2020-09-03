@@ -26,7 +26,11 @@ def main(im_path: str, scales: str, stride: int, save_path: str):
     if scales is not None:
         kwargs['scales'] = [float(eval(o)) for o in scales.split(',')]
 
-    anchors = aj.generate_anchors(im.size[::-1], stride=stride, **kwargs)
+    print("Generating anchors...")
+    anchors = aj.generate_anchors((im.size[1] // stride, im.size[0] // stride), 
+                                  stride=stride, **kwargs)
+
+    print('Drawing boxes...')
     im = viz.draw_boxes(im, anchors, 
                         boxes_width=2, 
                         colors=[viz.Color.Red, viz.Color.Green, viz.Color.Blue])

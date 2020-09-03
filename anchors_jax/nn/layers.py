@@ -50,6 +50,7 @@ def FasterRCNNRPN(k: int, num_classes: int, features: int) -> Layer:
                   filter_shape=(1, 1),
                   strides=(1, 1),
                   padding='SAME'),
+        stax.Relu,
         stax.Conv(k * 4, 
                   filter_shape=(1, 1),
                   strides=(1, 1),
@@ -64,6 +65,9 @@ def FasterRCNNRPN(k: int, num_classes: int, features: int) -> Layer:
     def apply_fun(params, x, **kwargs):
         conv_params, head_params = params
         x = conv_forward_fn(conv_params, x, **kwargs)
-        return head_forward_fn(head_params, [x, x], **kwargs)
+        cls_logits, reg_logits = head_forward_fn(head_params, [x, x], **kwargs)
+        cls_logits = cls_logits.reshape(x.shape[0], -1, num_classes)
+        reg_logits = reg_logits.reshape(x.shape[0], -1, 4)
+        return cls_logits, reg_logits
 
     return init_fun, apply_fun

@@ -13,9 +13,15 @@ _CONF = {
 }
 
 
-def _make_layers(cfg, batch_norm: bool = True) -> List[Layer]:
+def _make_layers(cfg, 
+                 batch_norm: bool = True, 
+                 include_top: bool = True) -> List[Layer]:
     layers = []
     in_channels = 3
+    
+    # Ignore max pooling if we do not append the classifier
+    if not include_top:
+        cfg = cfg[:-1]
 
     for v in cfg:
         if v == 'M':
@@ -41,7 +47,7 @@ def VGG16(num_classes: int = 1000,
           pooling: Optional[str] = None) -> Layer:
     assert pooling in {'avg', 'max', None}
 
-    features = _make_layers(_CONF['VGG16'], False)
+    features = _make_layers(_CONF['VGG16'], False, include_top)
 
     if not include_top and pooling == 'avg':
         vgg = stax.serial(*features, nn.layers.GlobalAveragePooling())
@@ -64,7 +70,12 @@ def VGG16(num_classes: int = 1000,
 def VGG16_imagenet_weights(include_top: bool = True):
     from tensorflow.keras.applications import VGG16
     cfg = _CONF['VGG16']
-    keras_vgg = VGG16(weights='imagenet', include_top=True)
+    with tf.device('/job:cpu'):
+        keras_vgg = VGG16(weights='imagenet', include_top=include_top)
+
+    # Ignore max pooling if we do not append the classifier
+    if not include_top:
+        cfg = cfg[:-1]
 
     params = []
     i = 0

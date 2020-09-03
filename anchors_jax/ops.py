@@ -32,11 +32,14 @@ def iou(anchors: Tensor, boxes: Tensor) -> Tensor:
     value. For example, the index [10, 4] contains the iou magnitude representing
     the intersection between the 10th anchor and 4th box
     """
+    anchors = anchors.astype('float32')
+    boxes = boxes.astype('float32')
+
     a_x1, a_y1, a_x2, a_y2 = np.split(anchors, 4, axis=1)
     b_x1, b_y1, b_x2, b_y2 = np.split(boxes, 4, axis=1)
 
-    anchors_areas = (a_y2 - a_y1)  * (a_x2 - a_x1)
-    boxes_areas = (b_y2 - b_y1)  * (b_x2 - b_x1)
+    anchors_areas = (a_y2 - a_y1) * (a_x2 - a_x1)
+    boxes_areas = (b_y2 - b_y1) * (b_x2 - b_x1)
 
     total_areas = anchors_areas + boxes_areas.T
 
@@ -49,7 +52,6 @@ def iou(anchors: Tensor, boxes: Tensor) -> Tensor:
     inter_w = np.maximum(inter_w, 0)
     inter_h = inter_y_max - inter_y_min
     inter_h = np.maximum(inter_h, 0)
-
     inter_areas = inter_h * inter_w
 
-    return inter_areas / (total_areas - inter_areas).astype('float32')
+    return inter_areas / (total_areas - inter_areas + 1e-8).astype('float32')

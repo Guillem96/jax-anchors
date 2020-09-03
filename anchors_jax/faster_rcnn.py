@@ -35,22 +35,17 @@ def single_point_anchors(
         The main advantage of this format is that we can easily tranlate the 
         anchors by just adding the desired offset vector
     """
-    k = len(aspect_ratios) * len(scales)
-    scales = np.array(scales)
+    scales = np.sqrt(np.array(scales))
     aspect_ratios = np.array(aspect_ratios)
 
-    heights = np.sqrt(np.tile(scales, len(aspect_ratios)) / 
-                      np.repeat(aspect_ratios, len(scales)))
-    widths = heights * np.repeat(aspect_ratios, len(scales))
+    h_ratios = np.sqrt(aspect_ratios)
+    w_ratios = 1 / h_ratios
 
-    heights = heights.reshape(-1, 1)
-    widths = widths.reshape(-1, 1)
+    heights = (h_ratios.reshape(-1, 1) * scales.reshape(1, -1)).reshape(-1, 1)
+    widths = (w_ratios.reshape(-1, 1) * scales.reshape(1, -1)).reshape(-1, 1)
 
-    anchors = np.hstack([-widths / 2,
-                         -heights / 2,
-                         widths - widths / 2,
-                         heights - heights / 2])
-    anchors = anchors.astype('int32')
+    anchors = np.hstack([-widths, -heights, widths, heights]) / 2.
+
     return anchors
 
 
@@ -79,10 +74,13 @@ def tile_anchors(anchors: Tensor,
         around the feature map (H x W / stride) and K is `anchors.shape[0]`. 
         Therefore, at each location we have K anchors.
     """
+    def arange(limit):
+        return (np.arange(limit).astype('float32') + .5) * stride
+
     K = anchors.shape[0]
 
-    shifts_x, shifts_y = np.meshgrid(np.arange(0.5, image_shape[1]) * stride,
-                                     np.arange(0.5, image_shape[0]) * stride)
+    shifts_y, shifts_x = np.meshgrid(arange(image_shape[0]), 
+                                     arange(image_shape[1]))
     shifts_x = shifts_x.reshape(-1, 1)
     shifts_y = shifts_y.reshape(-1, 1)
 
@@ -124,7 +122,7 @@ def generate_anchors(
         where H and W are the image height and width respectively
     """
     anchors = single_point_anchors(aspect_ratios=aspect_ratios, scales=scales)
-    return tile_anchors(anchors, image_shape, stride=stride)
+    return tile_anchors(anchors, image_shape, stride=stride).reshape(-1, 4)
 
 
 def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
@@ -259,18 +257,18 @@ def detect_tag_anchors(anchors: Tensor,
 
 def _anchors_indices(anchors: Tensor, 
                      boxes: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+
     ious = ops.iou(anchors, boxes)
 
     # Compute positive mask:
     # - Either anchors with highest overlap with a box, and anchors with an iou 
     #   larger or equal than 0.7
     larger_ious = ious >= .7
-
     higher_than_07 = np.any(larger_ious, axis=-1)
     higher_than_07 = higher_than_07.astype('float32')
 
     highest_ious_anchors_idx = ious.T.argmax(-1)
-    highest_ious_anchors = np.zeros((anchors.shape[0]))
+    highest_ious_anchors = np.zeros((anchors.shape[0], ))
     highest_ious_anchors = jax.ops.index_update(highest_ious_anchors,
                                                 highest_ious_anchors_idx, 1.)
 
