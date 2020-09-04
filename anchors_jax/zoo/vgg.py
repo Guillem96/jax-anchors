@@ -68,9 +68,10 @@ def VGG16(num_classes: int = 1000,
 
 
 def VGG16_imagenet_weights(include_top: bool = True):
+    import tensorflow as tf
     from tensorflow.keras.applications import VGG16
     cfg = _CONF['VGG16']
-    with tf.device('/job:cpu'):
+    with tf.device('/cpu:0'):
         keras_vgg = VGG16(weights='imagenet', include_top=include_top)
 
     # Ignore max pooling if we do not append the classifier

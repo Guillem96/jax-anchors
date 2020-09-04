@@ -83,8 +83,8 @@ def tile_anchors(anchors: Tensor,
                                      arange(image_shape[1]))
     shifts_x = shifts_x.reshape(-1, 1)
     shifts_y = shifts_y.reshape(-1, 1)
-
     shifts = np.concatenate([shifts_x, shifts_y, shifts_x, shifts_y], axis=1)
+
     N = shifts.shape[0]
     tiled_anchors = anchors.reshape(1, K, 4) + shifts.reshape(N, 1, 4)
     return tiled_anchors
@@ -158,17 +158,18 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
 
     # Non used labels are ignored with -1
     cls_labels = np.zeros((anchors.shape[0], )) - 1 
-    cls_labels = np.where(positive_mask, 1., cls_labels)
-    cls_labels = np.where(negative_mask, 0., cls_labels).reshape(-1, 1)
+    cls_labels = np.where(negative_mask, 0., cls_labels)
+    cls_labels = np.where(positive_mask, 1., cls_labels).reshape(-1, 1)
 
     # Start with the regressors
     selected_boxes = boxes[selected_boxes_idx]
     regressors = _compute_regressors(anchors, selected_boxes)
     
-    # Remove negative and ignored anchors regressors
-    regress_ignore = negative_mask | (cls_labels.reshape(-1) == -1.)
-    regress_ignore_idx = regress_ignore.nonzero()
-    regressors = jax.ops.index_update(regressors, regress_ignore_idx, 0.)
+    # Only keep positive anchor regressors, override the negative and ignored
+    # ones with zeros
+    keep_regressors = positive_mask.astype('float32')
+    keep_regressors = np.repeat(np.expand_dims(keep_regressors, -1), 4, axis=-1)
+    regressors = regressors * keep_regressors
 
     return cls_labels, regressors
 
@@ -247,10 +248,11 @@ def detect_tag_anchors(anchors: Tensor,
     # Start with the regressors
     regressors = _compute_regressors(anchors, selected_boxes)
 
-    # Remove negative and ignored anchors regressors
-    regress_ignore = negative_mask | (cls_labels.reshape(-1) == -1.)
-    regress_ignore_idx = regress_ignore.nonzero()
-    regressors = jax.ops.index_update(regressors, regress_ignore_idx, 0.)
+    # Only keep positive anchor regressors, override the negative and ignored
+    # ones with zeros
+    keep_regressors = positive_mask.astype('float32')
+    keep_regressors = np.repeat(np.expand_dims(keep_regressors, -1), 4, axis=-1)
+    regressors = regressors * keep_regressors
 
     return cls_labels, regressors
 
