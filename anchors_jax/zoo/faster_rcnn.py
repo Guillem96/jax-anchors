@@ -10,12 +10,11 @@ class FasterRCNN(hk.Module):
     def __init__(self,
                  num_classes: int, 
                  k: int):
+        super(FasterRCNN, self).__init__()
         self.num_classes = num_classes
         self.k = k
 
     def __call__(self, x: Tensor) -> Tensor:
         x = aj.zoo.VGG16(include_top=False)(x)
         x = jax.nn.relu(x)
-        return aj.nn.layers.FasterRCNNRPN(features=256, 
-                                          num_classes=self.num_classes, 
-                                          k=self.k)(x)
+        return aj.nn.layers.FasterRCNNRPN(features=256, k=self.k)(x)

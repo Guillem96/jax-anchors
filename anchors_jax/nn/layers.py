@@ -31,7 +31,7 @@ class GlobalMaxPooling(hk.Module):
 
 class FasterRCNNRPN(hk.Module):
 
-    def __init__(k: int, features: int):
+    def __init__(self, k: int, features: int):
         super(FasterRCNNRPN, self).__init__()
 
         self.k = k
@@ -44,17 +44,15 @@ class FasterRCNNRPN(hk.Module):
                       padding="SAME")(x)
         x = jax.nn.relu(x)
 
-        cls_logits = hk.Conv2D(self.k, 
-                               kernel_shape=[1, 1],
-                               stride=1,
-                               padding="SAME")
+        cls_logits = hk.Conv2D(output_channels=self.k, 
+                               kernel_shape=1, stride=1,
+                               padding="SAME")(x)
         cls_logits = jax.nn.sigmoid(cls_logits)
         cls_logits = cls_logits.reshape(x.shape[0], -1)
 
-        reg_logits = hk.Conv2D(self.k * 4, 
-                               kernel_shape=[1, 1],
-                               stride=1,
-                               padding="SAME")
+        reg_logits = hk.Conv2D(output_channels=self.k * 4, 
+                               kernel_shape=1, stride=1,
+                               padding="SAME")(x)
         reg_logits = reg_logits.reshape(x.shape[0], -1, 4)
 
         return cls_logits, reg_logits
