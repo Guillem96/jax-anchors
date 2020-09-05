@@ -74,7 +74,6 @@ class VGG16(hk.Module):
         self.pooling = pooling
         if pretrained:
             self.initial_weights = VGG16_imagenet_weights(include_top)
-            print(list(self.initial_weights))
         else:
             self.initial_weights = None
 
