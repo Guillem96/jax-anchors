@@ -2,10 +2,10 @@
 from typing import List, Optional
 
 import jax
-from jax.experimental import stax
+import haiku as hk
 
 from anchors_jax import nn
-from anchors_jax.typing import Layer
+from anchors_jax.typing import Tensor
 
 _CONF = {
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 
@@ -13,10 +13,11 @@ _CONF = {
 }
 
 
-def _make_layers(cfg, 
+def _call_layers(cfg,
+                 inp: Tensor,
                  batch_norm: bool = True, 
-                 include_top: bool = True) -> List[Layer]:
-    layers = []
+                 include_top: bool = True) -> List[hk.Module]:
+    x = inp
     in_channels = 3
     
     # Ignore max pooling if we do not append the classifier
@@ -25,46 +26,58 @@ def _make_layers(cfg,
 
     for v in cfg:
         if v == 'M':
-            layers.append(stax.MaxPool((2, 2), strides=(2, 2)))
+            x = hk.MaxPool(window_shape=[2, 2], 
+                           strides=[2, 2],
+                           padding="VALID")(x)
         else:
-            conv2d = stax.Conv(v, 
-                               filter_shape=(3, 3), 
-                               strides=(1, 1), 
-                               padding='SAME')
+            x = hk.Conv2D(v, 
+                          kernel_shape=[3, 3], 
+                          stride=1, 
+                          padding='SAME')(x)
+
             if batch_norm:
-                layers += [conv2d, 
-                           stax.BatchNorm(),
-                           stax.Relu]
-            else:
-                layers += [conv2d, stax.Relu]
+                x = hk.BatchNorm(True, True, decay_rate=0.999)(x)
+
+            x = jax.nn.relu(x)
             in_channels = v
 
-    return layers
+    return x
 
 
-def VGG16(num_classes: int = 1000, 
-          include_top: bool = True,
-          pooling: Optional[str] = None) -> Layer:
-    assert pooling in {'avg', 'max', None}
+class VGG16(hk.Module):
+    
+    def __init__(self,
+                 num_classes: int = 1000, 
+                 include_top: bool = True,
+                 pooling: Optional[str] = None) -> None:
+        super(VGG16, self).__init__()
 
-    features = _make_layers(_CONF['VGG16'], False, include_top)
+        assert pooling in {'avg', 'max', None}
 
-    if not include_top and pooling == 'avg':
-        vgg = stax.serial(*features, nn.layers.GlobalAveragePooling())
-    elif not include_top and pooling == 'max':
-        vgg = stax.serial(*features, nn.layers.GlobalMaxPooling())
-    elif not include_top and pooling is None:
-        vgg = stax.serial(*features)
-    else:
-        classifier = [
-            stax.Flatten,
-            stax.Dense(4096), stax.Relu,
-            stax.Dense(4096), stax.Relu,
-            stax.Dense(num_classes), stax.Softmax
-        ]
-        vgg = stax.serial(*features, *classifier)
+        self.num_classes = num_classes
+        self.include_top = include_top
+        self.pooling = pooling
 
-    return vgg
+    def __call__(self, x: Tensor) -> Tensor:
+        x = _call_layers(_CONF['VGG16'], x, False, self.include_top)
+
+        if not self.include_top and self.pooling == 'avg':
+            x = nn.layers.GlobalAveragePooling()(x)
+        elif not self.include_top and self.pooling == 'max':
+            x = nn.layers.GlobalMaxPooling()(x)
+        else:
+            x = hk.Flatten()(x)
+            
+            x = hk.Linear(4096)(x)
+            x = jax.nn.relu(x)
+
+            x = hk.Linear(4096)(x)
+            x = jax.nn.relu(x)
+            
+            x = hk.Linear(num_classes)
+            x = jax.nn.softmax(x)
+
+        return x
 
 
 def VGG16_imagenet_weights(include_top: bool = True):
