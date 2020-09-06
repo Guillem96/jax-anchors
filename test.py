@@ -49,8 +49,7 @@ def format_boxes(boxes, im_shape):
 def get_example(example):
     im = resize_im(example['image'])
     im_shape = tf.shape(im)
-    boxes = [o['bbox'] for o in example['objects']]
-    boxes = format_boxes(boxes, (im_shape[0], im_shape[1]))
+    boxes = format_boxes(example['objects']['bbox'], (im_shape[0], im_shape[1]))
     return im, boxes
 
 # @jax.jit
@@ -59,8 +58,8 @@ def generate_anchors(im, boxes):
     h = h // 16
     w = w // 16
 
-    anchors = aj.faster_rcnn.generate_anchors((h, w), stride=16, 
-                                              scales=(32**2, 128**2, 256**2))
+    print(h, w)
+    anchors = aj.faster_rcnn.generate_anchors((h, w), stride=16)
     labels, regressors = aj.faster_rcnn.rpn_tag_anchors(anchors, boxes)
 
     return anchors, labels, regressors

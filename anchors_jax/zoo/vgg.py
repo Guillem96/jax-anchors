@@ -85,6 +85,9 @@ class VGG16(hk.Module):
                             initial_weights=self.initial_weights)
 
     def _classifier(self, x: Tensor) -> Tensor:
+        override_weights = (self.initial_weights is not None and 
+                            self.num_classes == 1000)
+
         base_name = 'vgg16/linear'
         cfg = [4096, 4096, self.num_classes]
         for i, f in enumerate(cfg):
@@ -93,10 +96,10 @@ class VGG16(hk.Module):
             else:
                 param_name = base_name + f'_{i}'
             
-            w_init = (None if self.initial_weights is None
+            w_init = (None if not override_weights
                       else hk.initializers.Constant(
                           constant=self.initial_weights[param_name]['w']))
-            b_init = (None if self.initial_weights is None
+            b_init = (None not override_weights
                       else hk.initializers.Constant(
                           constant=self.initial_weights[param_name]['b']))
             x = hk.Linear(f, w_init=w_init, b_init=b_init)(x)
