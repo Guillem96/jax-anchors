@@ -99,7 +99,7 @@ class VGG16(hk.Module):
             w_init = (None if not override_weights
                       else hk.initializers.Constant(
                           constant=self.initial_weights[param_name]['w']))
-            b_init = (None not override_weights
+            b_init = (None if not override_weights
                       else hk.initializers.Constant(
                           constant=self.initial_weights[param_name]['b']))
             x = hk.Linear(f, w_init=w_init, b_init=b_init)(x)

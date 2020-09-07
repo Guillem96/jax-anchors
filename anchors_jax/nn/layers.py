@@ -39,7 +39,7 @@ class FasterRCNNRPN(hk.Module):
     
     def __call__(self, x: Tensor) -> Tensor:
         x = hk.Conv2D(output_channels=self.features,
-                      kernel_shape=[3, 3],
+                      kernel_shape=3,
                       stride=1,
                       padding="SAME")(x)
         x = jax.nn.relu(x)
