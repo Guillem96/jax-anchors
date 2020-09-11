@@ -19,5 +19,4 @@ class FasterRCNN(hk.Module):
     def __call__(self, x: Tensor) -> Tensor:
         x = aj.zoo.VGG16(include_top=False, 
                          pretrained=self.pretrained_backbone)(x)
-        x = jax.nn.relu(x)
         return aj.nn.layers.FasterRCNNRPN(features=256, k=self.k)(x)

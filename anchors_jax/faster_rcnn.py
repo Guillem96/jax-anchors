@@ -293,6 +293,13 @@ def _anchors_indices(anchors: Tensor,
                                   # overlaping anchor idx for each box
         np.arange(highest_ious_anchors_idx.shape[0]))
 
+    # Ignore padding boxes
+    selected_boxes = boxes[selected_boxes_idx]
+    valid_boxes = ~np.all(selected_boxes <= 0., axis=1)
+
+    positive_mask = positive_mask & valid_boxes
+    negative_mask = negative_mask & valid_boxes
+
     return positive_mask, negative_mask, selected_boxes_idx
 
 
@@ -308,7 +315,7 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
     # Regressors 
     tx_star = (x_star - x_a) / w_a
     ty_star = (y_star - y_a) / h_a
-    tw_star = np.log(w_star / w_a)
-    th_star = np.log(h_star / h_a)
+    tw_star = np.where(w_star <= 0, np.log(w_star / w_a), 0.)
+    th_star = np.where(h_star <= 0, np.log(h_star / h_a), 0.)
 
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
