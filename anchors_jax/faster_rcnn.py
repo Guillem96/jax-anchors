@@ -315,7 +315,7 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
     # Regressors 
     tx_star = (x_star - x_a) / w_a
     ty_star = (y_star - y_a) / h_a
-    tw_star = np.where(w_star <= 0, np.log(w_star / w_a), 0.)
-    th_star = np.where(h_star <= 0, np.log(h_star / h_a), 0.)
+    tw_star = np.where(w_star > 0., np.log(w_star / w_a), 0.)
+    th_star = np.where(h_star > 0., np.log(h_star / h_a), 0.)
 
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
