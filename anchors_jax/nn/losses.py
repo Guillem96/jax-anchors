@@ -1,4 +1,4 @@
-import jax.numpy as np
+from typing import Iterable
 
 import jax
 import jax.numpy as np
@@ -42,3 +42,7 @@ def smooth_l1(y_true: Tensor, y_pred: Tensor) -> Tensor:
     lin_error = abs_error - .5
 
     return mask * quad_error + (1. - mask) * lin_error
+
+
+def l2_loss(params: Iterable[Tensor]) -> Tensor:
+  return 0.5 * sum(np.sum(np.square(p)) for p in params)
