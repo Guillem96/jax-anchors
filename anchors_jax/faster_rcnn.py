@@ -125,7 +125,9 @@ def generate_anchors(
     return tile_anchors(anchors, image_shape, stride=stride).reshape(-1, 4)
 
 
-def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
+def rpn_tag_anchors(anchors: Tensor, 
+                    boxes: Tensor, 
+                    im_size: Tuple[int, int]) -> Tuple[Tensor, Tensor]:
     """
     Assigns a classification label and a regressor to each anchor box.
 
@@ -136,7 +138,9 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
         To work with batches of boxes, use `jax.vmap` decorator as follows:
         `fn = jax.vmap(rpn_tag_anchors, in_axes=[None, 0])`, note that we do not
         batch anchors, this is because anchors are always equal along the batch
-    
+    im_size: Tuple[int, int]
+        Image size H x W
+
     Returns
     -------
     Tuple[Tensor, Tensor]
@@ -153,7 +157,7 @@ def rpn_tag_anchors(anchors: Tensor, boxes: Tensor) -> Tuple[Tensor, Tensor]:
         anchors should be filtered out. The regressors of ignored and negative
         anchors contains -1 components.
     """
-    anchors_indices = _anchors_indices(anchors, boxes)
+    anchors_indices = _anchors_indices(anchors, boxes, im_size=im_size)
     positive_mask, negative_mask, selected_boxes_idx = anchors_indices
 
     # Non used labels are ignored with -1
@@ -204,7 +208,8 @@ def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
 
 def detect_tag_anchors(anchors: Tensor, 
                        boxes: Tensor, 
-                       labels: Tensor) -> Tuple[Tensor, Tensor]:
+                       labels: Tensor,
+                       im_size: Tuple[int, int]) -> Tuple[Tensor, Tensor]:
     """
     Tags every anchor with the corresponding classification and regression labels
 
@@ -234,7 +239,7 @@ def detect_tag_anchors(anchors: Tensor,
     """
     assert boxes.shape[0] == labels.reshape(-1).shape[0]
 
-    anchors_indices = _anchors_indices(anchors, boxes)
+    anchors_indices = _anchors_indices(anchors, boxes, im_size=im_size)
     positive_mask, negative_mask, selected_boxes_idx = anchors_indices
 
     selected_boxes = boxes[selected_boxes_idx]
@@ -242,9 +247,10 @@ def detect_tag_anchors(anchors: Tensor,
 
     # Non used labels are ignored with -1
     cls_labels = np.zeros((anchors.shape[0], )) - 1
+    cls_labels = np.where(negative_mask, 0., cls_labels)
     cls_labels = np.where(positive_mask, selected_labels, cls_labels)
-    cls_labels = np.where(negative_mask, 0., cls_labels).reshape(-1, 1)
-
+    cls_labels = cls_labels.reshape(-1, 1)
+    
     # Start with the regressors
     regressors = _compute_regressors(anchors, selected_boxes)
 
@@ -258,9 +264,16 @@ def detect_tag_anchors(anchors: Tensor,
 
 
 def _anchors_indices(anchors: Tensor, 
-                     boxes: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+                     boxes: Tensor,
+                     im_size: Tuple[int, int]) -> Tuple[Tensor, Tensor, Tensor]:
 
     ious = ops.iou(anchors, boxes)
+
+    cx = (anchors[..., 2] + anchors[..., 0]) / 2.
+    cy = (anchors[..., 1] + anchors[..., 3]) / 2.
+    cross_boundary_x = (cx < 0.) | (cx > im_size[1])
+    cross_boundary_y = (cy < 0.) | (cy > im_size[0])
+    cross_boundary  = cross_boundary_x | cross_boundary_y
 
     # Compute positive mask:
     # - Either anchors with highest overlap with a box, and anchors with an iou 
@@ -278,7 +291,7 @@ def _anchors_indices(anchors: Tensor,
     positive_mask = positive_mask.reshape(-1).astype('bool')
 
     # Compute negative mask, anchors with less than 0.3 iou
-    negative_mask = np.all(ious <= .3, axis=-1).reshape(-1)
+    negative_mask = np.all(ious < .3, axis=-1).reshape(-1)
 
     # Compute the index to get the selected boxes
     # First select the boxes with the iou higher than 0.7
@@ -297,8 +310,8 @@ def _anchors_indices(anchors: Tensor,
     selected_boxes = boxes[selected_boxes_idx]
     valid_boxes = ~np.all(selected_boxes <= 0., axis=1)
 
-    positive_mask = positive_mask & valid_boxes
-    negative_mask = negative_mask & valid_boxes
+    positive_mask = positive_mask & valid_boxes & ~cross_boundary
+    negative_mask = negative_mask & valid_boxes & ~cross_boundary
 
     return positive_mask, negative_mask, selected_boxes_idx
 

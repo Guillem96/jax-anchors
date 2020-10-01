@@ -5,6 +5,7 @@ import jax.numpy as np
 from anchors_jax.typing import Tensor
 
 
+# implementation from https://github.com/kuangliu/torchcv/blob/master/torchcv/utils/box.py
 def iou(anchors: Tensor, boxes: Tensor) -> Tensor:
     """
     Computes Jaccard index between anchors and ground truth boxes.
@@ -41,17 +42,11 @@ def iou(anchors: Tensor, boxes: Tensor) -> Tensor:
     anchors_areas = (a_y2 - a_y1) * (a_x2 - a_x1)
     boxes_areas = (b_y2 - b_y1) * (b_x2 - b_x1)
 
-    total_areas = anchors_areas + boxes_areas.T
+    lt = np.maximum(anchors.reshape(-1, 1, 4)[..., :2], boxes[..., :2])
+    rb = np.minimum(anchors.reshape(-1, 1, 4)[..., 2:], boxes[..., 2:])
+    wh = np.clip(rb - lt, 0)
 
-    inter_x_min = np.maximum(a_x1, b_x1.T)
-    inter_y_min = np.maximum(a_y1, b_y1.T)
-    inter_x_max = np.minimum(a_x2, b_x2.T)
-    inter_y_max = np.minimum(a_y2, b_y2.T)
+    inter = wh[..., 0] * wh[..., 1]
 
-    inter_w = inter_x_max - inter_x_min
-    inter_w = np.maximum(inter_w, 0)
-    inter_h = inter_y_max - inter_y_min
-    inter_h = np.maximum(inter_h, 0)
-    inter_areas = inter_h * inter_w
-
-    return inter_areas / (total_areas - inter_areas + 1e-8).astype('float32')
+    iou = inter / (anchors_areas + boxes_areas.reshape(-1) - inter)
+    return iou.astype('float32')

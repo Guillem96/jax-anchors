@@ -17,7 +17,12 @@ import anchors_jax as aj
 def main(im_path: str, annot_path: str) -> None:
 
     im = Image.open(im_path)
-    
+    initial_size = im.size[::-1]
+    im = im.resize((1000, 600))
+    h, w = im.size[::-1]
+    h = h // 16
+    w = w // 16
+
     # Load boxes from labelme rectangles
     annot = json.load(open(annot_path))
 
@@ -26,20 +31,21 @@ def main(im_path: str, annot_path: str) -> None:
     labels_idx = np.array([class_2_idx[o] for o in labels])
 
     boxes = [sum(o['points'], []) for o in annot['shapes']]
-    boxes = np.array(boxes).astype('int32')
+    boxes = np.array(boxes).astype('float32')
+    boxes = aj.boxes.normalize_boxes(boxes, initial_size)
+    boxes = aj.boxes.scale_boxes(boxes, im.size[::-1])
+    boxes = boxes.astype('int32')
 
     im = aj.viz.draw_boxes(im, 
                            boxes=boxes, 
                            colors=aj.viz.colored(labels),
                            labels=labels)
 
-    anchors = aj.faster_rcnn.generate_anchors(im.size[::-1],
-                                              stride=8,
-                                              scales=(32**2, 64**2, 128**2))
+    anchors = aj.faster_rcnn.generate_anchors((h, w), stride=16)
     anchors = anchors.reshape(-1, 4)
     
     cls_labels, _ = aj.faster_rcnn.detect_tag_anchors(
-        anchors=anchors, boxes=boxes, labels=labels_idx)
+        anchors=anchors, boxes=boxes, labels=labels_idx, im_size=im.size[::-1])
     cls_labels = cls_labels.reshape(-1)
 
     positive_anchors = anchors[cls_labels > 0.]

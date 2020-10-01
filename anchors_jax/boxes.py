@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import jax.numpy as np
 
 from anchors_jax.typing import Tensor
@@ -50,3 +52,29 @@ def xyxy_to_cxcywh(boxes: Tensor) -> Tensor:
     h = y_max - y_min
 
     return np.concatenate([x, y, w, h], axis=-1)
+
+
+def normalize_boxes(boxes: Tensor, im_shape: Tuple[int, int]) -> Tensor:
+    h, w = im_shape
+
+    x_min, y_min, x_max, y_max = np.split(boxes, 4, axis=1)
+
+    x_min = x_min / w
+    y_min = y_min / h
+    x_max = x_max / w
+    y_max = y_max / h
+
+    return np.concatenate([x_min, y_min, x_max, y_max], axis=1)
+
+
+def scale_boxes(boxes: Tensor, im_shape: Tuple[int, int]) -> Tensor:
+    h, w = im_shape
+
+    x_min, y_min, x_max, y_max = np.split(boxes, 4, axis=1)
+
+    x_min = x_min * w
+    y_min = y_min * h 
+    x_max = x_max * w 
+    y_max = y_max * h
+
+    return np.concatenate([x_min, y_min, x_max, y_max], axis=1)
