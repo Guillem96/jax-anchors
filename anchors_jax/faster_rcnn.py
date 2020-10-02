@@ -11,7 +11,6 @@ from anchors_jax.typing import Tensor
 def single_point_anchors(
         aspect_ratios: Sequence[float] = (.5, 1., 2.),
         scales: Sequence[float] = (512**2, 256**2, 128**2)) -> Tensor:
-    
     """
     Generates a single set of K anchors which is center is located at the origin
 

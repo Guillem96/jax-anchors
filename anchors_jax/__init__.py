@@ -1,5 +1,6 @@
 from . import boxes
 from . import faster_rcnn
+from . import ssd
 from . import image
 from . import ops
 from . import typing
