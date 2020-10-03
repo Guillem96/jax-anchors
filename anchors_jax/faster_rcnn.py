@@ -68,7 +68,7 @@ def tile_anchors(anchors: Tensor,
     
     Returns
     -------
-    Tensor of shape [N, K, 4]
+    Tensor of shape [N * K, 4]
         A tensor of boxes of shape [N, K, 4] where N is the number of locations
         around the feature map (H x W / stride) and K is `anchors.shape[0]`. 
         Therefore, at each location we have K anchors.
@@ -86,7 +86,7 @@ def tile_anchors(anchors: Tensor,
 
     N = shifts.shape[0]
     tiled_anchors = anchors.reshape(1, K, 4) + shifts.reshape(N, 1, 4)
-    return tiled_anchors
+    return tiled_anchors.reshape(-1, 4)
 
 
 def generate_anchors(
