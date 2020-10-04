@@ -23,18 +23,11 @@ def main(im_path: str, annot_path: str) -> None:
     h = h // 16
     w = w // 16
 
-    # Load boxes from labelme rectangles
-    annot = json.load(open(annot_path))
-
-    labels = [o['label'] for o in annot['shapes']]
-    class_2_idx = _get_label_mapping(labels)
-    labels_idx = np.array([class_2_idx[o] for o in labels])
-
-    boxes = [sum(o['points'], []) for o in annot['shapes']]
-    boxes = np.array(boxes).astype('float32')
-    boxes = aj.boxes.normalize_boxes(boxes, initial_size)
-    boxes = aj.boxes.scale_boxes(boxes, im.size[::-1])
-    boxes = boxes.astype('int32')
+        # Load labelme annoations
+    boxes, labels_idx, label_2_idx = aj.io.load_labelme_annot(
+        annot_path, normalize_boxes=False)
+    idx_2_label = {v: k for k, v in label_2_idx.items()}
+    labels = [idx_2_label[i] for i in labels_idx.tolist()]
 
     im = aj.viz.draw_boxes(im, 
                            boxes=boxes, 
@@ -42,21 +35,15 @@ def main(im_path: str, annot_path: str) -> None:
                            labels=labels)
 
     anchors = aj.faster_rcnn.generate_anchors((h, w), stride=16)
-    anchors = anchors.reshape(-1, 4)
-    
+
     cls_labels, _ = aj.faster_rcnn.detect_tag_anchors(
-        anchors=anchors, boxes=boxes, labels=labels_idx, im_size=im.size[::-1])
+        anchors=anchors, boxes=boxes, labels=labels_idx, im_size=initial_size)
     cls_labels = cls_labels.reshape(-1)
 
     positive_anchors = anchors[cls_labels > 0.]
     anchors_colors = aj.viz.colored(cls_labels[cls_labels > 0.].tolist())
 
     aj.viz.draw_boxes(im, boxes=positive_anchors, colors=anchors_colors).show()
-
-
-def _get_label_mapping(labels: List[str]) -> Mapping[str, int]:
-    classes = set(labels)
-    return {c: i for i, c in enumerate(classes, start=1)}
 
 
 if __name__ == "__main__":

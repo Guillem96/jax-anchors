@@ -6,3 +6,4 @@ from . import ops
 from . import typing
 from . import viz
 from . import zoo
+from . import io
