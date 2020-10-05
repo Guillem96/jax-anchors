@@ -1,5 +1,5 @@
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import jax
 import haiku as hk
@@ -18,11 +18,12 @@ def _call_layers(
         inp: Tensor,
         batch_norm: bool = True, 
         include_top: bool = True,
-        initial_weights: Optional[hk.Params] = None) -> List[hk.Module]:
+        initial_weights: Optional[hk.Params] = None,
+        output_feature_maps: bool = False) -> Union[Tensor, List[Tensor]]:
 
     x = inp
-    in_channels = 3
-    
+    partial_results = []
+
     # Ignore max pooling if we do not append the classifier
     if not include_top:
         cfg = cfg[:-1]
@@ -31,6 +32,7 @@ def _call_layers(
     base_name = 'vgg16/conv2_d'
     for v in cfg:
         if v == 'M':
+            partial_results.append(x)
             x = hk.MaxPool(window_shape=2, strides=2, padding="VALID")(x)
         else:
             if i == 0:
@@ -53,9 +55,14 @@ def _call_layers(
                 x = hk.BatchNorm(True, True, decay_rate=0.999)(x)
 
             x = jax.nn.relu(x)
-            in_channels = v
 
-    return x
+    partial_results.append(x)
+
+    if not output_feature_maps:
+        return partial_results[-1]
+    else:
+        return partial_results
+
 
 
 class VGG16(hk.Module):
@@ -64,25 +71,38 @@ class VGG16(hk.Module):
                  num_classes: int = 1000, 
                  include_top: bool = True,
                  pooling: Optional[str] = None,
-                 pretrained: bool = True) -> None:
+                 pretrained: bool = True,
+                 output_feature_maps: bool = False) -> None:
         super(VGG16, self).__init__()
 
         assert pooling in {'avg', 'max', None}
 
+        if include_top and output_feature_maps:
+            raise ValueError("include_top to append a classifier on top of the "
+                             "CNN in not compatible with outputing all the cnn "
+                             "feature maps (enabled with output_feature_maps)")
+
+        if output_feature_maps and pooling is not None:
+            raise ValueError("Cannot set a pooling when outputing the"
+                             " partial feature maps")
+
         self.num_classes = num_classes
         self.include_top = include_top
         self.pooling = pooling
+        self.output_feature_maps = output_feature_maps
+
         if pretrained:
             self.initial_weights = VGG16_imagenet_weights(include_top)
         else:
             self.initial_weights = None
 
-    def features(self, x: Tensor) -> Tensor:
+    def features(self, x: Tensor) -> Union[Tensor, List[Tensor]]:
         return _call_layers(_CONF['VGG16'],
                             inp=x,
                             batch_norm=False,
                             include_top=self.include_top,
-                            initial_weights=self.initial_weights)
+                            initial_weights=self.initial_weights,
+                            output_feature_maps=self.output_feature_maps)
 
     def _classifier(self, x: Tensor) -> Tensor:
         override_weights = (self.initial_weights is not None and 
@@ -109,7 +129,7 @@ class VGG16(hk.Module):
                 x = jax.nn.softmax(x)
         return x
 
-    def __call__(self, x: Tensor) -> Tensor:
+    def __call__(self, x: Tensor) -> Union[Tensor, List[Tensor]]:
         x = self.features(x)
 
         if not self.include_top and self.pooling == 'avg':

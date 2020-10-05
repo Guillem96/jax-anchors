@@ -24,13 +24,14 @@ def main(im_path):
     rng = jax.random.PRNGKey(0)
 
     vgg = hk.transform(_forward)
+    vgg = hk.without_apply_rng(vgg)
 
     im = Image.open(im_path).convert('RGB').resize((224, 224))
     im = aj.image.caffe_preprocess(im)
     im = np.expand_dims(im, 0)
 
     params = vgg.init(rng, im)
-    prediction = vgg.apply(params, hk.next_rng_key(), im)
+    prediction = vgg.apply(params, im)
 
     print(tf.keras.applications.imagenet_utils.decode_predictions(prediction))
 
