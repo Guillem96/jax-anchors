@@ -33,12 +33,9 @@ def main(im_path: str, annot_path: str, save_path: str):
     cls_labels, regressors = aj.ssd.detect_tag_anchors(
         anchors=anchors, boxes=boxes, labels=labels_idx)
 
-    cls_labels = np.concatenate(cls_labels)
-    regressors = np.concatenate(regressors)
 
-    anchors = [aj.boxes.cxcywh_to_xyxy(o) for o in anchors]
-    anchors = [aj.boxes.scale_boxes(o, im.size[::-1]) for o in anchors]
-    anchors = np.concatenate(anchors)
+    anchors = aj.boxes.cxcywh_to_xyxy(anchors)
+    anchors = aj.boxes.scale_boxes(anchors, im.size[::-1])
 
     boxes = aj.boxes.scale_boxes(boxes, im.size[::-1])
 

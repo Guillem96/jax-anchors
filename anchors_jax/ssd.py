@@ -64,7 +64,7 @@ def single_point_anchors(
 
 def tile_anchors(
         anchors: Sequence[Tensor], 
-        feature_maps_shapes: Sequence[Tuple[int, int]]) -> Sequence[Tensor]:
+        feature_maps_shapes: Sequence[Tuple[int, int]]) -> Tensor:
     """
     Takes a sequence of anchors and tiles them to the corresponding feature map
 
@@ -80,8 +80,8 @@ def tile_anchors(
     
     Returns
     -------
-    Sequence[Tensor], Tensors of shape [N, K, 4]
-        A tensor of boxes of shape [N, K, 4] where N is the number of locations
+    Tensor of shape [N, 4]
+        A tensor of boxes of shape [N, 4] where N is the number of locations
         around the feature map (H x W / stride) and K is `anchors.shape[0]`. 
         Therefore, at each location we have K anchors.
     """
@@ -112,13 +112,13 @@ def tile_anchors(
         fm_tiled_anchors = fm_tiled_anchors.reshape(-1, 4)
         tiled_anchors.append(fm_tiled_anchors)
 
-    return tiled_anchors
+    return np.concatenate(tiled_anchors)
 
 
 def generate_anchors(
         feature_maps_shapes: Sequence[Tuple[int, int]],
         aspect_ratios: Sequence[float] = (1., 2., 3., 1/2., 1/3.),
-        s_min: float = .2, s_max: float = .9) -> Sequence[Tensor]:
+        s_min: float = .2, s_max: float = .9) -> Tensor:
     """
     Generate anchors located at the origin of each feature map, and afterwards 
     tiles them. This method generates the anchors as described in the SSD paper
@@ -141,7 +141,7 @@ def generate_anchors(
 
     Returns
     -------
-    Sequence[Tensor], Tensors of shape [N, 4]
+    Tensor of shape [N, 4]
         The resulting tensor containing all anchors for every feature map.
         The resulting anchors are formated as [cx, cy, w, h]. Anchors are 
         normalized between 0 to 1 with respect to the feature map shape
@@ -152,7 +152,7 @@ def generate_anchors(
     return tile_anchors(anchors, feature_maps_shapes=feature_maps_shapes)
 
 
-def detect_tag_anchors(anchors: Sequence[Tensor], 
+def detect_tag_anchors(anchors: Tensor, 
                        boxes: Tensor, 
                        labels: Tensor) -> Tuple[Tensor, Tensor]:
     """
@@ -163,7 +163,7 @@ def detect_tag_anchors(anchors: Sequence[Tensor],
 
     Parameters
     ----------
-    anchors: Sequence of Tensors of shape [N, 4]
+    anchors: Tensor of shape [N, 4]
         Anchors are expected to be normalized between 0 and 1 and formated as
         [cx, cy, w, h].
     boxes: Tensor of shape [M, 4]
@@ -173,7 +173,7 @@ def detect_tag_anchors(anchors: Sequence[Tensor],
 
     Returns
     -------
-    Sequence[Tuple[Tensor, Tensor]]
+    Tuple[Tensor, Tensor]
         First element of the tuple has shape [N, 1] and contains 0 if the anchor
         does not overlap with any box, the overlaping box label if the anchor 
         overlaps with a box or a -1 if the anchor has to be ignored.
@@ -186,10 +186,6 @@ def detect_tag_anchors(anchors: Sequence[Tensor],
     """
     assert boxes.shape[0] == labels.reshape(-1).shape[0]
 
-    ks = [0] + [len(o) for o in anchors]
-    ks = np.cumsum(np.array(ks))
-
-    anchors = np.concatenate(anchors, axis=0)
     anchors = utils.cxcywh_to_xyxy(anchors)
 
     anchors_indices = _anchors_indices(anchors, boxes)
@@ -213,10 +209,35 @@ def detect_tag_anchors(anchors: Sequence[Tensor],
     keep_regressors = np.repeat(np.expand_dims(keep_regressors, -1), 4, axis=-1)
     regressors = regressors * keep_regressors
 
-    cls_labels, regressors = zip(*[(cls_labels[k1:k2], regressors[k1:k2]) 
-                                   for k1, k2 in zip(ks[:-1], ks[1:])])
-
     return cls_labels, regressors
+
+
+def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
+    """
+    Corrects the anchors with the predicted regressors
+
+    Parameters
+    ----------
+    anchors: Tensor of shape [N, 4]
+        Anchors are expected to be normalized between 0 and 1 and formated as
+        [cx, cy, w, h].
+    regressors: Tensor of shape [N, 4]
+
+    Returns
+    -------
+    Tensor of shape [N, 4]
+    """
+    assert anchors.shape[0] == regressors.shape[0]
+
+    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
+    tx, ty, tw, th = np.split(regressors, 4, axis=1)
+
+    x = tx * w_a + x_a
+    y = ty * h_a + y_a
+    w = w_a * np.exp(tw)
+    h = h_a * np.exp(th)
+
+    return np.concatenate([x, y, w, h], axis=-1)
 
 
 def _anchors_indices(anchors: Tensor, 
