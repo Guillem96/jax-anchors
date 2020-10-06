@@ -23,15 +23,18 @@ class SSD(hk.Module):
             self.k = [k]
 
         self.pretrained_backbone = pretrained_backbone
+        self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
         clf = hk.Conv2D(k * self.num_classes, 
-                        kernel_shape=3, padding="SAME",
+                        kernel_shape=3, padding="SAME", with_bias=False,
+                        w_init=self.xavier_init_fn,
                         name=f"head_{name}_cls")(x)
         clf = clf.reshape(x.shape[0], -1, self.num_classes)
         clf = jax.nn.softmax(clf, axis=-1)
 
-        reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME",
+        reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME", with_bias=False,
+                        w_init=self.xavier_init_fn,
                         name=f"head_{name}_reg")(x)
         reg = reg.reshape(x.shape[0], -1, 4)
 
@@ -47,6 +50,8 @@ class SSD(hk.Module):
                       kernel_shape=1,
                       stride=1, 
                       padding='SAME',
+                      with_bias=False,
+                      w_init=self.xavier_init_fn,
                       name=f'additional_{name}_1')(x)
         # TODO: BatchNorm?
         x = jax.nn.relu(x)
@@ -55,6 +60,8 @@ class SSD(hk.Module):
                       kernel_shape=3,
                       stride=stride,
                       padding='SAME' if stride == 2 else 'VALID',
+                      with_bias=False,
+                      w_init=self.xavier_init_fn,
                       name=f'additional_{name}_2')(x)
         # TODO: BatchNorm?
         x = jax.nn.relu(x)
@@ -71,12 +78,14 @@ class SSD(hk.Module):
         # Replace fully connected by FCN
         conv_6 = hk.Conv2D(output_channels=1024, 
                       kernel_shape=3, 
-                      stride=1, 
+                      stride=1,
+                      w_init=self.xavier_init_fn,
                       padding='SAME')(x)
 
         conv7 = hk.Conv2D(output_channels=1, 
                           kernel_shape=1, 
-                          stride=1, 
+                          stride=1,
+                          w_init=self.xavier_init_fn,
                           padding='SAME')(conv_6)
 
         # Build additional features
