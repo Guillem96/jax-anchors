@@ -29,6 +29,29 @@ def cxcywh_to_xyxy(boxes: Tensor) -> Tensor:
     return np.concatenate([x_min, y_min, x_max, y_max], axis=-1)
 
 
+def xyxy_to_xywh(boxes) :
+    """
+    Converts a tensor of boxes formatted as [x_min, y_min, x_max, y_max] to
+    [x_min, y_min, width, height]
+
+    Parameters
+    ----------
+    boxes: Tensor of shape [N, 4]
+        Tensor of N boxes formatted as [x_min, y_min, x_max, y_max]
+    
+    Returns
+    -------
+    Tensor of shape [N, 4]
+        Tensor of N boxes formatted as [x_min, y_min, width, height]
+    """
+    x_min, y_min, x_max, y_max = np.split(boxes, 4, axis=1)
+
+    w = x_max - x_min
+    h = y_max - y_min
+
+    return np.concatenate([x_min, y_min, w, h], axis=-1)
+
+
 def xyxy_to_cxcywh(boxes: Tensor) -> Tensor:
     """
     Converts a tensor of boxes formatted as [x_min, y_min, x_max, y_max] to

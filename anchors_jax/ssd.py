@@ -52,7 +52,7 @@ def single_point_anchors(
         zeros = np.zeros((ha.shape[0], 1))
         anchors = np.hstack([zeros, zeros, wa, ha])
 
-        if i < len(scales) - 2:
+        if i < len(scales) - 1:
             hw = np.sqrt(sk * scales[i + 1])
             extra = np.array([0., 0., hw, hw])
             anchors = np.append(anchors, extra.reshape(1, 4), axis=0)

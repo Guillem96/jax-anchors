@@ -1,6 +1,8 @@
-from typing import List, Tuple
+import itertools
+from typing import List, Tuple, Union
 
 import jax
+import jax.numpy as np
 import haiku as hk
 
 import anchors_jax as aj
@@ -12,21 +14,24 @@ class SSD(hk.Module):
 
     def __init__(self,
                  num_classes: int, 
-                 k: int,
+                 k: Union[int, List[int]],
                  pretrained_backbone: bool = True):
         super(SSD, self).__init__()
         self.num_classes = num_classes
         self.k = k
+        if not isinstance(k, list):
+            self.k = [k]
+
         self.pretrained_backbone = pretrained_backbone
 
-    def _head(self, x: Tensor, name: str) -> Tuple[Tensor, Tensor]:
-        clf = hk.Conv2D(self.k * self.num_classes, 
+    def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
+        clf = hk.Conv2D(k * self.num_classes, 
                         kernel_shape=3, padding="SAME",
                         name=f"head_{name}_cls")(x)
         clf = clf.reshape(x.shape[0], -1, self.num_classes)
         clf = jax.nn.softmax(clf, axis=-1)
 
-        reg = hk.Conv2D(self.k * 4, kernel_shape=3, padding="SAME",
+        reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME",
                         name=f"head_{name}_reg")(x)
         reg = reg.reshape(x.shape[0], -1, 4)
 
@@ -86,6 +91,9 @@ class SSD(hk.Module):
 
         detection_features = [conv4_3, conv7, conv8_2, 
                               conv9_2, conv10_2, conv11_2]
+        detection_features = zip(itertools.cycle(self.k), detection_features)
 
-        return [self._head(o, name=f"fm_{'_'.join(map(str,o.shape))}") 
-                for o in detection_features]
+        clf, reg = zip(*[self._head(o, k=k, name=f"fm_{i}") 
+                         for i, (k, o) in enumerate(detection_features)])
+
+        return np.concatenate(clf, axis=1), np.concatenate(reg, axis=1) 
