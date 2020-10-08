@@ -198,6 +198,7 @@ def detect_tag_anchors(anchors: Tensor,
     cls_labels = np.zeros((anchors.shape[0], )) - 1
     cls_labels = np.where(negative_mask, 0., cls_labels)
     cls_labels = np.where(positive_mask, selected_labels, cls_labels)
+    cls_labels = np.where(selected_labels == -1, -1, cls_labels)
     cls_labels = cls_labels.reshape(-1, 1)
 
     # Start with the regressors
@@ -270,9 +271,9 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
     x_star, y_star, w_star, h_star = np.split(boxes, 4, axis=1)
 
     # Regressors 
-    tx_star = (x_star - x_a) / w_a
-    ty_star = (y_star - y_a) / h_a
-    tw_star = np.where(w_star > 0., np.log(w_star / w_a), 0.)
-    th_star = np.where(h_star > 0., np.log(h_star / h_a), 0.)
+    tx_star = np.where(w_a <= 0., 0., (x_star - x_a) / w_a)
+    ty_star = np.where(h_a <= 0., 0., (y_star - y_a) / h_a)
+    tw_star = np.where((w_star > 0.) & (w_a > 0.), np.log(w_star / w_a), 0.)
+    th_star = np.where((h_star > 0.) & (h_a > 0.), np.log(h_star / h_a), 0.)
 
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)

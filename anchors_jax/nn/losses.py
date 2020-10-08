@@ -17,7 +17,7 @@ def sparse_cross_entropy(y_true: Tensor, y_pred: Tensor) -> Tensor:
     epsilon = 1e-8
     y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
     y_true = jax.nn.one_hot(y_true, y_pred.shape[-1])
-    return y_true * -np.log(y_pred)
+    return -np.sum(y_true * np.log(y_pred), -1)
 
 
 def binary_cross_entropy(y_true: Tensor, y_pred: Tensor) -> Tensor:

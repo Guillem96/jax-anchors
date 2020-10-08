@@ -27,7 +27,7 @@ def torch_preprocess(im: Image) -> Tensor:
     im = jax.ops.index_add(im, jax.ops.index[..., 2], -mean[2])
 
     im = jax.ops.index_mul(im, jax.ops.index[..., 0], 1 / std[0])
-    im = jax.ops.index_add(im, jax.ops.index[..., 1], 1 / std[1])
-    im = jax.ops.index_add(im, jax.ops.index[..., 2], 1 / std[2])
+    im = jax.ops.index_mul(im, jax.ops.index[..., 1], 1 / std[1])
+    im = jax.ops.index_mul(im, jax.ops.index[..., 2], 1 / std[2])
 
     return im
