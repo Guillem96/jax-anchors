@@ -31,7 +31,7 @@ class SSD(hk.Module):
                         w_init=self.xavier_init_fn,
                         name=f"head_{name}_cls")(x)
         clf = clf.reshape(x.shape[0], -1, self.num_classes)
-        clf = jax.nn.softmax(clf, axis=-1)
+        clf = jax.nn.sigmoid(clf, axis=-1)
 
         reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME", with_bias=False,
                         w_init=self.xavier_init_fn,
