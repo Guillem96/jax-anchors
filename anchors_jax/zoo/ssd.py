@@ -25,7 +25,8 @@ class SSD(hk.Module):
         self.pretrained_backbone = pretrained_backbone
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
-    def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
+    def _head(self, x: Tensor, 
+              k: int, training: bool, name: str) -> Tuple[Tensor, Tensor]:
         clf = hk.Conv2D(k * self.num_classes, kernel_shape=3, 
                         padding="SAME",
                         b_init=aj.nn.initializers.PriorProbability(0.01), 
@@ -54,7 +55,7 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_1')(x)
-        x = hk.BatchNorm(name=f'additional_bn_{name}')(x)
+        x = hk.BatchNorm(name=f'additional_bn_{name}')(x, is_training=training)
         x = jax.nn.relu(x)
 
         x = hk.Conv2D(output_channels=out_channels, 
@@ -64,12 +65,13 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_2')(x)
-        x = hk.BatchNorm(name=f'additional_bn_{name}')(x)
+        x = hk.BatchNorm(name=f'additional_bn_{name}')(x, is_training=training)
         x = jax.nn.relu(x)
 
         return x
 
-    def __call__(self, x: Tensor) -> List[Tuple[Tensor, Tensor]]:
+    def __call__(self, x: Tensor, 
+                 training: bool = False) -> Tuple[Tensor, Tensor]:
         x = aj.zoo.VGG16(include_top=False, 
                          pretrained=self.pretrained_backbone, 
                          output_feature_maps=True)(x)
@@ -90,13 +92,17 @@ class SSD(hk.Module):
                           padding='SAME')(conv_6)
 
         # Build additional features
-        conv8_2 = self._additional_conv(conv7, 256, 512, stride=2, 
+        conv8_2 = self._additional_conv(conv7, 256, 512, stride=2,
+                                        training=training, 
                                         name='conv_8')
-        conv9_2 = self._additional_conv(conv8_2, 128, 256, stride=2, 
+        conv9_2 = self._additional_conv(conv8_2, 128, 256, stride=2,
+                                        training=training, 
                                         name='conv_9')
         conv10_2 = self._additional_conv(conv9_2, 128, 256, stride=1,
+                                         training=training, 
                                          name='conv_10')
         conv11_2 = self._additional_conv(conv10_2, 128, 256, stride=1,
+                                         training=training, 
                                          name='conv_11')
 
         detection_features = [conv4_3, conv7, conv8_2, 
