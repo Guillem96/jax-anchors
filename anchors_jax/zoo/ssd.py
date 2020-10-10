@@ -24,9 +24,13 @@ class SSD(hk.Module):
 
         self.pretrained_backbone = pretrained_backbone
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
+        
+        self.bn_config = {}
+        self.bn_config["create_scale"] = True
+        self.bn_config["create_offset"] = True
+        self.bn_config["decay_rate"] = 0.999
 
-    def _head(self, x: Tensor, 
-              k: int, training: bool, name: str) -> Tuple[Tensor, Tensor]:
+    def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
         clf = hk.Conv2D(k * self.num_classes, kernel_shape=3, 
                         padding="SAME",
                         b_init=aj.nn.initializers.PriorProbability(0.01), 
@@ -45,7 +49,8 @@ class SSD(hk.Module):
     def _additional_conv(self, 
                          x: Tensor, 
                          interim_channels: int, 
-                         out_channels: int, 
+                         out_channels: int,
+                         training: bool,
                          stride: int, name: str) -> Tensor:
 
         x = hk.Conv2D(output_channels=interim_channels, 
@@ -55,7 +60,8 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_1')(x)
-        x = hk.BatchNorm(name=f'additional_bn_{name}')(x, is_training=training)
+        x = hk.BatchNorm(**self.bn_config, 
+                         name=f'additional_batchnorm_{name}_1')(x, is_training=training)
         x = jax.nn.relu(x)
 
         x = hk.Conv2D(output_channels=out_channels, 
@@ -65,7 +71,8 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_2')(x)
-        x = hk.BatchNorm(name=f'additional_bn_{name}')(x, is_training=training)
+        x = hk.BatchNorm(**self.bn_config, 
+                         name=f'additional_batchnorm_{name}_2')(x, is_training=training)
         x = jax.nn.relu(x)
 
         return x
