@@ -17,3 +17,13 @@ class XavierUniform(hk.initializers.Initializer):
         fan_in, fan_out = _compute_fans(shape)
         a = self.gain * np.sqrt(6. / (fan_in + fan_out))
         return hk.initializers.RandomUniform(-a, a)(shape, dtype)
+
+
+class PriorProbability(hk.initializers.Initializer):
+
+    def __init__(self, prob: float):
+        self.prob = prob
+
+    def __call__(self, shape: Sequence[int], dtype) -> Tensor:
+        init = np.ones(shape, dtype='float32')
+        return init * -np.log((1 - self.prob) / self.prob)

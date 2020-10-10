@@ -26,15 +26,16 @@ class SSD(hk.Module):
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
-        clf = hk.Conv2D(k * self.num_classes, 
-                        kernel_shape=3, padding="SAME", with_bias=False,
-                        w_init=self.xavier_init_fn,
+        clf = hk.Conv2D(k * self.num_classes, kernel_shape=3, 
+                        padding="SAME",
+                        b_init=aj.nn.initializers.PriorProbability(0.01), 
+                        w_init=self.xavier_init_fn, 
                         name=f"head_{name}_cls")(x)
         clf = clf.reshape(x.shape[0], -1, self.num_classes)
-        clf = jax.nn.sigmoid(clf, axis=-1)
+        clf = jax.nn.sigmoid(clf)
 
-        reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME", with_bias=False,
-                        w_init=self.xavier_init_fn,
+        reg = hk.Conv2D(k * 4, kernel_shape=3, padding="SAME",
+                        w_init=self.xavier_init_fn, 
                         name=f"head_{name}_reg")(x)
         reg = reg.reshape(x.shape[0], -1, 4)
 
@@ -53,7 +54,7 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_1')(x)
-        # TODO: BatchNorm?
+        x = hk.BatchNorm(name=f'additional_bn_{name}')(x)
         x = jax.nn.relu(x)
 
         x = hk.Conv2D(output_channels=out_channels, 
@@ -63,7 +64,7 @@ class SSD(hk.Module):
                       with_bias=False,
                       w_init=self.xavier_init_fn,
                       name=f'additional_{name}_2')(x)
-        # TODO: BatchNorm?
+        x = hk.BatchNorm(name=f'additional_bn_{name}')(x)
         x = jax.nn.relu(x)
 
         return x
@@ -77,12 +78,12 @@ class SSD(hk.Module):
 
         # Replace fully connected by FCN
         conv_6 = hk.Conv2D(output_channels=1024, 
-                      kernel_shape=3, 
-                      stride=1,
-                      w_init=self.xavier_init_fn,
-                      padding='SAME')(x)
+                           kernel_shape=3, 
+                           stride=1,
+                           w_init=self.xavier_init_fn,
+                           padding='SAME')(x)
 
-        conv7 = hk.Conv2D(output_channels=1, 
+        conv7 = hk.Conv2D(output_channels=1024, 
                           kernel_shape=1, 
                           stride=1,
                           w_init=self.xavier_init_fn,
@@ -102,7 +103,7 @@ class SSD(hk.Module):
                               conv9_2, conv10_2, conv11_2]
         detection_features = zip(itertools.cycle(self.k), detection_features)
 
-        clf, reg = zip(*[self._head(o, k=k, name=f"fm_{i}") 
-                         for i, (k, o) in enumerate(detection_features)])
+        clf, reg = list(zip(*[self._head(o, k=k, name=f"fm_{i}") 
+                              for i, (k, o) in enumerate(detection_features)]))
 
         return np.concatenate(clf, axis=1), np.concatenate(reg, axis=1) 

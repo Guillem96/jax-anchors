@@ -22,8 +22,9 @@ def sparse_cross_entropy(y_true: Tensor, y_pred: Tensor) -> Tensor:
 
 def binary_cross_entropy(y_true: Tensor, y_pred: Tensor) -> Tensor:
     epsilon = 1e-8
-    y_pred = y_pred.reshape(-1)
+
     y_true = y_true.astype('float32')
+    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
 
     loss = y_true * np.log(y_pred + epsilon)
     loss += (1. - y_true) * np.log(1. - y_pred + epsilon)
@@ -39,7 +40,7 @@ def focal_loss(y_true: Tensor, y_pred: Tensor,
     focal_weight = np.where(y_true > 0, 1 - y_pred, y_pred)
     focal_weight = alpha_factor * focal_weight ** gamma
 
-    return focal_weight * binary_crossentropy(y_true, y_pred)
+    return focal_weight * binary_cross_entropy(y_true, y_pred)
 
 
 def smooth_l1(y_true: Tensor, y_pred: Tensor, sigma: float = 3.) -> Tensor:
@@ -50,8 +51,8 @@ def smooth_l1(y_true: Tensor, y_pred: Tensor, sigma: float = 3.) -> Tensor:
 
     error = y_true - y_pred
     abs_error = np.abs(error)
-    loss = np.where(error_abs < 1.0 / sigma_squared,
-                    0.5 * sigma_squared * np.pow(abs_error, 2),
+    loss = np.where(abs_error < 1.0 / sigma_squared,
+                    0.5 * sigma_squared * np.power(abs_error, 2),
                     abs_error - 0.5 / sigma_squared)
     return loss
 
