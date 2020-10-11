@@ -19,6 +19,7 @@ class Color(str, Enum):
     Yellow = '#ffff00'
     Purple = '#ab47bc'
     White = '#ffffff'
+    Black = '#000000'
 
 
 def colored(items: List[Any]) -> List[Color]:
@@ -81,10 +82,10 @@ def draw_boxes(
         if l != '':
             x1, y1, x2, y2 = b
             draw.rectangle([x1, y1 - int(im.size[1] * 0.06), 
-                            x2 // 2, y1], fill=c,
+                            x2, y1], fill=c,
                             outline=c, width=boxes_width)
-            draw.text((x1 + 3, y1 - int(im.size[1] * 0.07)), 
-                    l, fill=Color.White)
+            draw.text((x1 + 3, y1 - int(im.size[1] * 0.05)), 
+                    l, fill=Color.Black)
         draw.rectangle(b, outline=c, width=boxes_width)
 
     return draw_im

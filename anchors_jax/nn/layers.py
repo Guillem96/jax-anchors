@@ -64,3 +64,24 @@ class FasterRCNNRPN(hk.Module):
         reg_logits = reg_logits.reshape(x.shape[0], -1, 4)
 
         return cls_logits, reg_logits
+
+
+class L2Norm(hk.Module):
+
+    def __init__(self, init_fn: hk.initializers.Initializer = None):
+        super(L2Norm, self).__init__()
+        if  init_fn is None:
+            self.init_fn = hk.initializers.Constant(20.)
+        else:
+            self.init_fn = init_fn
+
+        self.axis = -1
+
+    def __call__(self, x: Tensor) -> Tensor:
+        gamma = hk.get_parameter("gamma", shape=[x.shape[-1]], 
+                                 init=self.init_fn,
+                                 dtype='float32')
+        square_sum = np.sum(np.square(x), axis=-1, keepdims=True)
+        x_inv = np.sqrt(np.maximum(square_sum, 1e-8))
+        x = x * x_inv
+        return x * gamma

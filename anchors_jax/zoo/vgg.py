@@ -64,7 +64,6 @@ def _call_layers(
         return partial_results
 
 
-
 class VGG16(hk.Module):
 
     def __init__(self,
@@ -72,6 +71,7 @@ class VGG16(hk.Module):
                  include_top: bool = True,
                  pooling: Optional[str] = None,
                  pretrained: bool = True,
+                 initial_weights=None,
                  output_feature_maps: bool = False) -> None:
         super(VGG16, self).__init__()
 
@@ -91,7 +91,13 @@ class VGG16(hk.Module):
         self.pooling = pooling
         self.output_feature_maps = output_feature_maps
 
-        if pretrained:
+        if initial_weights is not None and pretrained:
+            raise ValueError("When pretrained is True, initial_weights must"
+                             " be None")
+
+        if initial_weights is not None:
+            self.initial_weights = initial_weights
+        elif pretrained:
             self.initial_weights = VGG16_imagenet_weights(include_top)
         else:
             self.initial_weights = None

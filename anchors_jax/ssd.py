@@ -1,4 +1,5 @@
-from typing import Tuple, Sequence
+import itertools
+from typing import List, Tuple, Sequence, Union
 
 import jax
 import jax.numpy as np
@@ -7,16 +8,18 @@ import anchors_jax.ops as ops
 import anchors_jax.boxes as utils
 from anchors_jax.typing import Tensor
 
+AspectRatios = Union[Tuple[float, ...], List[Tuple[float, ...]]]
+
 
 def scales_for_sizes(m: int, 
                      s_min: float = .2, 
                      s_max: float = .9) -> Sequence[float]:
     return [s_min + ((s_max - s_min) / (m - 1)) * (k - 1) 
-            for k in range(1, m + 1)]
+            for k in range(1, m + 2)]
 
 
 def single_point_anchors(
-    aspect_ratios: Sequence[float] = (1., 2., 3., 1/2., 1/3.),
+    aspect_ratios: AspectRatios = (1., 2., 3., 1/2., 1/3.),
     scales: Sequence[float] = None) -> Sequence[Tensor]:
 
     """
@@ -27,11 +30,12 @@ def single_point_anchors(
 
     Parameters
     ----------
-    aspect_ratios: Sequence[float], default (1., 2., 3., 1/2., 1/3.)
+    aspect_ratios: Tuple[float, ...] or List[Tuple[float, ...]], default (1., 2., 3., 1/2., 1/3.)
+        Aspect ratios per level
     scales: Sequence[float], default None
         If left to None, by default the method computes the scale value for 
         three features maps
-    
+
     Returns
     -------
     List[Tensor]
@@ -39,23 +43,28 @@ def single_point_anchors(
         cardinality is equal to the length of the given scales
     """
     result = []
-    aspect_ratios = np.array(aspect_ratios)
     scales = scales or scales_for_sizes(3)
-    
-    for i, sk in enumerate(scales):
-        wa = sk * np.sqrt(aspect_ratios)
+
+    if not isinstance(aspect_ratios, list):
+        aspect_ratios = itertools.cycle([aspect_ratios])
+
+    elif len(aspect_ratios) != len(scales) - 1:
+        raise ValueError("The length of aspect ratio and scales must be equal")
+
+    for i, (sk, ar) in enumerate(zip(scales[:-1], aspect_ratios)):
+        ar = np.array(ar)
+        wa = sk * np.sqrt(ar)
         wa = wa.reshape(-1, 1)
         
-        ha = sk / np.sqrt(aspect_ratios)
+        ha = sk / np.sqrt(ar)
         ha = ha.reshape(-1, 1)
 
         zeros = np.zeros((ha.shape[0], 1))
         anchors = np.hstack([zeros, zeros, wa, ha])
 
-        if i < len(scales) - 1:
-            hw = np.sqrt(sk * scales[i + 1])
-            extra = np.array([0., 0., hw, hw])
-            anchors = np.append(anchors, extra.reshape(1, 4), axis=0)
+        hw = np.sqrt(sk * scales[i + 1])
+        extra = np.array([0., 0., hw, hw])
+        anchors = np.append(anchors, extra.reshape(1, 4), axis=0)
 
         result.append(anchors)
 
