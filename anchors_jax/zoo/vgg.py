@@ -121,7 +121,7 @@ class VGG16(hk.Module):
                 param_name = base_name
             else:
                 param_name = base_name + f'_{i}'
-            
+
             w_init = (None if not override_weights
                       else hk.initializers.Constant(
                           constant=self.initial_weights[param_name]['w']))

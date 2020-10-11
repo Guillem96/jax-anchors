@@ -13,7 +13,7 @@ from anchors_jax.typing import Tensor
 class SSD(hk.Module):
 
     def __init__(self,
-                 num_classes: int, 
+                 num_classes: int,
                  k: Union[int, List[int]],
                  pretrained: bool = False,
                  pretrained_backbone: bool = True):
@@ -38,8 +38,11 @@ class SSD(hk.Module):
             self.ssd_initial_weights = None
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
+        override_weights = (self.ssd_initial_weights is not None and
+                            self.num_classes == 21) # When VOC
+
         b_init_fn = aj.nn.initializers.PriorProbability(0.01)
-        if self.ssd_initial_weights is not None:
+        if override_weights:
             params_t = 'ssd/~_head/head_{}_{}'
             params = self.ssd_initial_weights
             init_fns = {
