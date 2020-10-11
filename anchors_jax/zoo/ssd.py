@@ -39,7 +39,7 @@ class SSD(hk.Module):
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
         override_weights = (self.ssd_initial_weights is not None and
-                            self.num_classes == 21) # When VOC
+                            self.num_classes == 21) # When COCO
 
         b_init_fn = aj.nn.initializers.PriorProbability(0.01)
         if override_weights:
@@ -104,10 +104,6 @@ class SSD(hk.Module):
                       b_init=init_fns[0]['b'],
                       name=f'additional_{name}_1')(x)
         x = jax.nn.relu(x)
-
-        if stride == 2:
-            padding = ((0, 0), (1, 1), (1, 1), (0, 0))
-            x = np.pad(x, padding, 'constant', constant_values=0.)
 
         x = hk.Conv2D(output_channels=out_channels, 
                       kernel_shape=3,

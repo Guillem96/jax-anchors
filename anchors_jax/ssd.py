@@ -107,7 +107,7 @@ def tile_anchors(
 
     # We assume that feature maps are squared
     for fm_anchors, (fk, _) in zip(anchors, feature_maps_shapes):
-        shifts_y, shifts_x = np.meshgrid(arange(fk), arange(fk))
+        shifts_x, shifts_y = np.meshgrid(arange(fk), arange(fk))
         shifts_x = shifts_x.reshape(-1, 1)
         shifts_y = shifts_y.reshape(-1, 1)
         zeros = np.zeros_like(shifts_y)
@@ -288,4 +288,5 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
     tw_star = np.where((w_star > 0.) & (w_a > 0.), np.log(w_star / w_a), 0.)
     th_star = np.where((h_star > 0.) & (h_a > 0.), np.log(h_star / h_a), 0.)
 
+    return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
