@@ -161,9 +161,11 @@ def generate_anchors(
     return tile_anchors(anchors, feature_maps_shapes=feature_maps_shapes)
 
 
-def detect_tag_anchors(anchors: Tensor, 
-                       boxes: Tensor, 
-                       labels: Tensor) -> Tuple[Tensor, Tensor]:
+def detect_tag_anchors(
+        anchors: Tensor, 
+        boxes: Tensor, 
+        labels: Tensor,
+        standardize_regressors: bool = True) -> Tuple[Tensor, Tensor]:
     """
     Tags every anchor with the corresponding classification and regression labels
 
@@ -179,6 +181,8 @@ def detect_tag_anchors(anchors: Tensor,
         Boxes are expected to be normalized between 0 and 1 with respect to the
         original image size and formated as [x_min, y_min, x_max, y_max]
     labels: Tensor of shape [M] or [M, 1]
+    standardize_regressors: bool, default True
+        Wether or not to standardize the regressors with 0 mean and .2 std
 
     Returns
     -------
@@ -211,7 +215,8 @@ def detect_tag_anchors(anchors: Tensor,
     cls_labels = cls_labels.reshape(-1, 1)
 
     # Start with the regressors
-    regressors = _compute_regressors(anchors, selected_boxes)
+    regressors = _compute_regressors(anchors, selected_boxes, 
+                                     standardize_regressors)
 
     # Only keep positive anchor regressors, override the negative and ignored
     # ones with zeros
@@ -273,7 +278,8 @@ def _anchors_indices(anchors: Tensor,
     return positive_mask, negative_mask, highest_boxes_iou_idx
 
 
-def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
+def _compute_regressors(anchors: Tensor, boxes: Tensor, 
+                        standardize: bool = True) -> Tensor:
     assert anchors.shape[0] == boxes.shape[0]
 
     anchors = utils.xyxy_to_cxcywh(anchors)
@@ -288,5 +294,12 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
     tw_star = np.where((w_star > 0.) & (w_a > 0.), np.log(w_star / w_a), 0.)
     th_star = np.where((h_star > 0.) & (h_a > 0.), np.log(h_star / h_a), 0.)
 
-    return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
+    mean = [0., 0., 0., 0.]
+    std = [0.2, 0.2, 0.2, 0.2]
+
+    tx_star = (tx_star - mean[0]) / std[0]
+    ty_star = (ty_star - mean[1]) / std[1]
+    tw_star = (tw_star - mean[2]) / std[2]
+    th_star = (th_star - mean[3]) / std[3]
+
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
