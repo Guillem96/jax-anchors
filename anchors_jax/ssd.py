@@ -227,7 +227,8 @@ def detect_tag_anchors(
     return cls_labels, regressors
 
 
-def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
+def apply_regressors(anchors: Tensor, regressors: Tensor, 
+                     standardize: bool = True) -> Tensor:
     """
     Corrects the anchors with the predicted regressors
 
@@ -237,6 +238,8 @@ def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
         Anchors are expected to be normalized between 0 and 1 and formated as
         [cx, cy, w, h].
     regressors: Tensor of shape [N, 4]
+    standardize: bool, default True
+        User should set this to true in case the regressors are standardized
 
     Returns
     -------
@@ -246,6 +249,15 @@ def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
 
     x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
     tx, ty, tw, th = np.split(regressors, 4, axis=1)
+
+    if standardize:
+        mean = [0., 0., 0., 0.]
+        std = [0.2, 0.2, 0.2, 0.2]
+
+        tx = tx * std[0] + mean[0]
+        ty = ty * std[1] + mean[1]
+        tw = tw * std[2] + mean[2]
+        th = th * std[3] + mean[3]
 
     x = tx * w_a + x_a
     y = ty * h_a + y_a
@@ -294,12 +306,13 @@ def _compute_regressors(anchors: Tensor, boxes: Tensor,
     tw_star = np.where((w_star > 0.) & (w_a > 0.), np.log(w_star / w_a), 0.)
     th_star = np.where((h_star > 0.) & (h_a > 0.), np.log(h_star / h_a), 0.)
 
-    mean = [0., 0., 0., 0.]
-    std = [0.2, 0.2, 0.2, 0.2]
+    if standardize:
+        mean = [0., 0., 0., 0.]
+        std = [0.2, 0.2, 0.2, 0.2]
 
-    tx_star = (tx_star - mean[0]) / std[0]
-    ty_star = (ty_star - mean[1]) / std[1]
-    tw_star = (tw_star - mean[2]) / std[2]
-    th_star = (th_star - mean[3]) / std[3]
+        tx_star = (tx_star - mean[0]) / std[0]
+        ty_star = (ty_star - mean[1]) / std[1]
+        tw_star = (tw_star - mean[2]) / std[2]
+        th_star = (th_star - mean[3]) / std[3]
 
     return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
