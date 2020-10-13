@@ -32,8 +32,7 @@ def binary_cross_entropy(y_true: Tensor, y_pred: Tensor) -> Tensor:
 
 
 def focal_loss(y_true: Tensor, y_pred: Tensor, 
-               alpha: float = 0.25, gamma: float = 2.0, 
-               cutoff: float = 0.5) -> Tensor:
+               alpha: float = 0.25, gamma: float = 2.0) -> Tensor:
 
     alpha_factor = np.ones_like(y_true) * alpha
     alpha_factor = np.where(y_true > 0, alpha_factor, 1 - alpha_factor)
@@ -51,7 +50,7 @@ def smooth_l1(y_true: Tensor, y_pred: Tensor, beta: float = 1.) -> Tensor:
     abs_error = np.abs(error)
     return np.where(abs_error < beta,
                     .5 * abs_error ** 2 / beta,
-                    n - .5 * beta)
+                    abs_error - .5 * beta)
 
 
 def l2_loss(params: Iterable[Tensor]) -> Tensor:

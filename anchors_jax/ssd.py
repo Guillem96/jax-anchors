@@ -285,7 +285,7 @@ def _anchors_indices(anchors: Tensor,
     positive_mask = positive_mask & ~cross_boundary
 
     negative_mask = highest_boxes_iou < .5
-    negative_mask = positive_mask & ~negative_mask
+    negative_mask = negative_mask & ~cross_boundary
 
     return positive_mask, negative_mask, highest_boxes_iou_idx
 
