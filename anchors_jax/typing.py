@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Callable, List, Union, Tuple
 
 import numpy as onp
@@ -17,3 +18,9 @@ ForwardFn = Callable[[Tensor], Tensor]
 
 Layer = Tuple[InitFn, ForwardFn]
 LayerFactory = Callable[[Any], Layer]
+
+
+class BoxesFormat(Enum):
+    xyxy = 'xyxy'
+    cxcywh = 'cxcywh'
+    xywh = 'xywh'

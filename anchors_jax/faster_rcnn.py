@@ -6,6 +6,8 @@ import jax.numpy as np
 import anchors_jax.ops as ops
 import anchors_jax.boxes as utils
 from anchors_jax.typing import Tensor
+from anchors_jax.detection.regressors import (apply_regressors, 
+                                              compute_regressors)
 
 
 def single_point_anchors(
@@ -124,9 +126,11 @@ def generate_anchors(
     return tile_anchors(anchors, image_shape, stride=stride).reshape(-1, 4)
 
 
-def rpn_tag_anchors(anchors: Tensor, 
-                    boxes: Tensor, 
-                    im_size: Tuple[int, int]) -> Tuple[Tensor, Tensor]:
+def rpn_tag_anchors(
+        anchors: Tensor, 
+        boxes: Tensor, 
+        im_size: Tuple[int, int],
+        standardize_regressors: bool = True) -> Tuple[Tensor, Tensor]:
     """
     Assigns a classification label and a regressor to each anchor box.
 
@@ -166,8 +170,12 @@ def rpn_tag_anchors(anchors: Tensor,
 
     # Start with the regressors
     selected_boxes = boxes[selected_boxes_idx]
-    regressors = _compute_regressors(anchors, selected_boxes)
-    
+    regressors = compute_regressors(anchors,
+                                    selected_boxes,
+                                    anchors_fmt=BoxesFormat.xyxy,
+                                    boxes_fmt=BoxesFormat.xyxy,
+                                    standardize=standardize_regressors)
+
     # Only keep positive anchor regressors, override the negative and ignored
     # ones with zeros
     keep_regressors = positive_mask.astype('float32')
@@ -205,10 +213,12 @@ def apply_regressors(anchors: Tensor, regressors: Tensor) -> Tensor:
     return utils.cxcywh_to_xyxy(np.concatenate([x, y, w, h], axis=-1))
 
 
-def detect_tag_anchors(anchors: Tensor, 
-                       boxes: Tensor, 
-                       labels: Tensor,
-                       im_size: Tuple[int, int]) -> Tuple[Tensor, Tensor]:
+def detect_tag_anchors(
+        anchors: Tensor,
+        boxes: Tensor,
+        labels: Tensor,
+        im_size: Tuple[int, int],
+        standardize_regressors: bool = True) -> Tuple[Tensor, Tensor]:
     """
     Tags every anchor with the corresponding classification and regression labels
 
@@ -251,7 +261,11 @@ def detect_tag_anchors(anchors: Tensor,
     cls_labels = cls_labels.reshape(-1, 1)
     
     # Start with the regressors
-    regressors = _compute_regressors(anchors, selected_boxes)
+    regressors = compute_regressors(anchors,
+                                    selected_boxes,
+                                    anchors_fmt=BoxesFormat.xyxy,
+                                    boxes_fmt=BoxesFormat.xyxy,
+                                    standardize=standardize_regressors)
 
     # Only keep positive anchor regressors, override the negative and ignored
     # ones with zeros
@@ -313,21 +327,3 @@ def _anchors_indices(anchors: Tensor,
     negative_mask = negative_mask & valid_boxes & ~cross_boundary
 
     return positive_mask, negative_mask, selected_boxes_idx
-
-
-def _compute_regressors(anchors: Tensor, boxes: Tensor) -> Tensor:
-    assert anchors.shape[0] == boxes.shape[0]
-
-    anchors = utils.xyxy_to_cxcywh(anchors)
-    boxes = utils.xyxy_to_cxcywh(boxes)
-
-    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
-    x_star, y_star, w_star, h_star = np.split(boxes, 4, axis=1)
-
-    # Regressors 
-    tx_star = (x_star - x_a) / w_a
-    ty_star = (y_star - y_a) / h_a
-    tw_star = np.where(w_star > 0., np.log(w_star / w_a), 0.)
-    th_star = np.where(h_star > 0., np.log(h_star / h_a), 0.)
-
-    return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)

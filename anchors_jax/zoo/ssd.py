@@ -39,7 +39,7 @@ class SSD(hk.Module):
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
         override_weights = (self.ssd_initial_weights is not None and
-                            self.num_classes == 21) # When COCO
+                            self.num_classes == 81) # When COCO
 
         b_init_fn = aj.nn.initializers.PriorProbability(0.01)
         if override_weights:
@@ -184,7 +184,7 @@ class SSD(hk.Module):
 def SSD_VGG_VOC_weights():
     import pickle
 
-    params = pickle.load(open('../ssd_voc.jax', 'rb'))
+    params = pickle.load(open('../ssd_coco.jax', 'rb'))
     backbone_params = {k:v for k, v in params.items() if 'vgg' in k}
     backbone_params = {k.replace('ssd/', '').replace('~features/', ''): v
                        for k,v in backbone_params.items()}

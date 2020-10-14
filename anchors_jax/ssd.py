@@ -5,8 +5,11 @@ import jax
 import jax.numpy as np
 
 import anchors_jax.ops as ops
-import anchors_jax.boxes as utils
-from anchors_jax.typing import Tensor
+import anchors_jax.boxes as boxes_utils
+from anchors_jax.typing import BoxesFormat, Tensor
+from anchors_jax.detection.regressors import (apply_regressors, 
+                                              compute_regressors)
+
 
 AspectRatios = Union[Tuple[float, ...], List[Tuple[float, ...]]]
 
@@ -199,7 +202,7 @@ def detect_tag_anchors(
     """
     assert boxes.shape[0] == labels.reshape(-1).shape[0]
 
-    anchors = utils.cxcywh_to_xyxy(anchors)
+    anchors = boxes_utils.cxcywh_to_xyxy(anchors)
 
     anchors_indices = _anchors_indices(anchors, boxes)
     positive_mask, negative_mask, selected_boxes_idx = anchors_indices
@@ -215,8 +218,11 @@ def detect_tag_anchors(
     cls_labels = cls_labels.reshape(-1, 1)
 
     # Start with the regressors
-    regressors = _compute_regressors(anchors, selected_boxes, 
-                                     standardize_regressors)
+    regressors = compute_regressors(anchors,
+                                    selected_boxes,
+                                    anchors_fmt=BoxesFormat.xyxy,
+                                    boxes_fmt=BoxesFormat.xyxy,
+                                    standardize=standardize_regressors)
 
     # Only keep positive anchor regressors, override the negative and ignored
     # ones with zeros
@@ -225,46 +231,6 @@ def detect_tag_anchors(
     regressors = regressors * keep_regressors
 
     return cls_labels, regressors
-
-
-def apply_regressors(anchors: Tensor, regressors: Tensor, 
-                     standardize: bool = True) -> Tensor:
-    """
-    Corrects the anchors with the predicted regressors
-
-    Parameters
-    ----------
-    anchors: Tensor of shape [N, 4]
-        Anchors are expected to be normalized between 0 and 1 and formated as
-        [cx, cy, w, h].
-    regressors: Tensor of shape [N, 4]
-    standardize: bool, default True
-        User should set this to true in case the regressors are standardized
-
-    Returns
-    -------
-    Tensor of shape [N, 4]
-    """
-    assert anchors.shape[0] == regressors.shape[0]
-
-    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
-    tx, ty, tw, th = np.split(regressors, 4, axis=1)
-
-    if standardize:
-        mean = [0., 0., 0., 0.]
-        std = [0.2, 0.2, 0.2, 0.2]
-
-        tx = tx * std[0] + mean[0]
-        ty = ty * std[1] + mean[1]
-        tw = tw * std[2] + mean[2]
-        th = th * std[3] + mean[3]
-
-    x = tx * w_a + x_a
-    y = ty * h_a + y_a
-    w = w_a * np.exp(tw)
-    h = h_a * np.exp(th)
-
-    return np.concatenate([x, y, w, h], axis=-1)
 
 
 def _anchors_indices(anchors: Tensor, 
@@ -288,31 +254,3 @@ def _anchors_indices(anchors: Tensor,
     negative_mask = negative_mask & ~cross_boundary
 
     return positive_mask, negative_mask, highest_boxes_iou_idx
-
-
-def _compute_regressors(anchors: Tensor, boxes: Tensor, 
-                        standardize: bool = True) -> Tensor:
-    assert anchors.shape[0] == boxes.shape[0]
-
-    anchors = utils.xyxy_to_cxcywh(anchors)
-    boxes = utils.xyxy_to_cxcywh(boxes)
-
-    x_a, y_a, w_a, h_a = np.split(anchors, 4, axis=1)
-    x_star, y_star, w_star, h_star = np.split(boxes, 4, axis=1)
-
-    # Regressors 
-    tx_star = np.where(w_a <= 0., 0., (x_star - x_a) / w_a)
-    ty_star = np.where(h_a <= 0., 0., (y_star - y_a) / h_a)
-    tw_star = np.where((w_star > 0.) & (w_a > 0.), np.log(w_star / w_a), 0.)
-    th_star = np.where((h_star > 0.) & (h_a > 0.), np.log(h_star / h_a), 0.)
-
-    if standardize:
-        mean = [0., 0., 0., 0.]
-        std = [0.2, 0.2, 0.2, 0.2]
-
-        tx_star = (tx_star - mean[0]) / std[0]
-        ty_star = (ty_star - mean[1]) / std[1]
-        tw_star = (tw_star - mean[2]) / std[2]
-        th_star = (th_star - mean[3]) / std[3]
-
-    return np.concatenate([tx_star, ty_star, tw_star, th_star], axis=-1)
