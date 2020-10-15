@@ -184,7 +184,7 @@ class SSD(hk.Module):
 def SSD_VGG_VOC_weights():
     import pickle
 
-    params = pickle.load(open('../ssd_coco.jax', 'rb'))
+    params = pickle.load(open('/content/drive/My Drive/_weights/ssd_coco.jax', 'rb'))
     backbone_params = {k:v for k, v in params.items() if 'vgg' in k}
     backbone_params = {k.replace('ssd/', '').replace('~features/', ''): v
                        for k,v in backbone_params.items()}

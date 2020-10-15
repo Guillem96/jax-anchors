@@ -93,7 +93,7 @@ def ssd_loss(cls_true: Tensor,
     n_negatives = n_positives * 3.
 
     # Apply sparse categorical cross entropy to all samples
-    cls_loss = jax.vmap(aj.nn.losses.sparse_cross_entropy)(cls_true, cls_pred)
+    cls_loss = jax.vmap(sparse_cross_entropy)(cls_true, cls_pred)
 
     # Filter only the positive ones and sum the batch loss to obtain a 
     # tensor of shape [batch_size] containing the lost for each batch image
@@ -103,6 +103,7 @@ def ssd_loss(cls_true: Tensor,
     # Pick the negatives' sample loss and compute the mask to keep only the
     # highest loss samples
     neg_cls_loss = cls_loss * negative_mask.reshape(bs, -1)
+    neg_cls_loss = np.take(neg_cls_loss, np.argsort(-neg_cls_loss, axis=-1))
     neg_top_mask = _ssd_compute_negative_mask(neg_cls_loss, n_negatives)
     neg_cls_loss = neg_top_mask * neg_cls_loss
 
@@ -115,7 +116,7 @@ def ssd_loss(cls_true: Tensor,
     cls_loss = np.mean(cls_loss) # Reduce to a scalar
 
     # We only compute the smooth l1 loss for positive samples
-    reg_loss = aj.nn.losses.smooth_l1(reg_true, reg_pred)
+    reg_loss = smooth_l1(reg_true, reg_pred)
     reg_loss = np.sum(reg_loss, axis=-1) # Sum the loss of the four coordinates
     reg_loss = reg_loss * positive_mask.reshape(bs, -1) # Filter out negatives
     reg_loss = np.sum(reg_loss, axis=-1) / np.maximum(1., n_positives)
@@ -137,6 +138,7 @@ def _ssd_compute_negative_mask(negative_losses: Tensor,
     """
     bs = negative_losses.shape[0]
     neg_top_mask = np.zeros_like(negative_losses)
+    n_negatives = n_negatives.astype('int32')
 
     # TODO: Wait for jax.ops.index[np.arange(bs), n_negatives]
 
