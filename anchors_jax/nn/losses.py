@@ -108,7 +108,7 @@ def ssd_loss(cls_true: Tensor,
     neg_cls_loss = neg_top_mask * neg_cls_loss
 
     # Sum the loss over the batch (same situation as the positive samples)
-    neg_cls_loss = np.sum(neg_cls_loss)
+    neg_cls_loss = np.sum(neg_cls_loss, axis=-1)
 
     # Sum positive and negative losses and normalize the sum over batch dividing
     # by the number of positives
@@ -118,9 +118,9 @@ def ssd_loss(cls_true: Tensor,
     reg_loss = smooth_l1(reg_true, reg_pred)
     reg_loss = np.sum(reg_loss, axis=-1) # Sum the loss of the four coordinates
     reg_loss = reg_loss * positive_mask.reshape(bs, -1) # Filter out negatives
-    reg_loss = np.sum(reg_loss) / np.maximum(1., n_positives)
+    reg_loss = np.sum(reg_loss, axis=-1) / np.maximum(1., n_positives)
 
-    return cls_loss, reg_loss
+    return np.sum(cls_loss), np.sum(reg_loss)
 
 
 def _ssd_compute_negative_mask(negative_losses: Tensor, 
