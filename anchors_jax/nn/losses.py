@@ -98,29 +98,27 @@ def ssd_loss(cls_true: Tensor,
     # Filter only the positive ones and sum the batch loss to obtain a 
     # tensor of shape [batch_size] containing the lost for each batch image
     pos_cls_loss = cls_loss * positive_mask.reshape(bs, -1)
-    pos_cls_loss = np.sum(pos_cls_loss, axis=-1)
+    pos_cls_loss = np.sum(pos_cls_loss)
 
     # Pick the negatives' sample loss and compute the mask to keep only the
     # highest loss samples
     neg_cls_loss = cls_loss * negative_mask.reshape(bs, -1)
-    neg_cls_loss = np.take(neg_cls_loss, np.argsort(-neg_cls_loss, axis=-1))
+    neg_cls_loss = -np.sort(-neg_cls_loss)
     neg_top_mask = _ssd_compute_negative_mask(neg_cls_loss, n_negatives)
     neg_cls_loss = neg_top_mask * neg_cls_loss
 
     # Sum the loss over the batch (same situation as the positive samples)
-    neg_cls_loss = np.sum(neg_cls_loss, axis=-1)
+    neg_cls_loss = np.sum(neg_cls_loss)
 
     # Sum positive and negative losses and normalize the sum over batch dividing
     # by the number of positives
     cls_loss = pos_cls_loss + neg_cls_loss / np.maximum(1., n_positives)
-    cls_loss = np.mean(cls_loss) # Reduce to a scalar
 
     # We only compute the smooth l1 loss for positive samples
     reg_loss = smooth_l1(reg_true, reg_pred)
     reg_loss = np.sum(reg_loss, axis=-1) # Sum the loss of the four coordinates
     reg_loss = reg_loss * positive_mask.reshape(bs, -1) # Filter out negatives
-    reg_loss = np.sum(reg_loss, axis=-1) / np.maximum(1., n_positives)
-    reg_loss = np.mean(reg_loss)
+    reg_loss = np.sum(reg_loss) / np.maximum(1., n_positives)
 
     return cls_loss, reg_loss
 
@@ -146,6 +144,5 @@ def _ssd_compute_negative_mask(negative_losses: Tensor,
         neg_top_mask = jax.ops.index_update(
             neg_top_mask, jax.ops.index[i, n_negatives[i]], 1.)
 
-    neg_top_mask = neg_top_mask.cumsum(-1).astype('bool')
-    neg_top_mask = ~neg_top_mask
+    neg_top_mask = 1 - neg_top_mask.cumsum(-1)
     return neg_top_mask.astype('float32')
