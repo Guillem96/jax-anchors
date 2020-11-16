@@ -11,11 +11,11 @@ def compute_regressors(anchors: Tensor, boxes: Tensor,
     assert anchors.shape[0] == boxes.shape[0]
 
     # Convert anchors and boxes to cxcywh
-    if anchors_fmt != anchors_fmt.cxcywh:
+    if anchors_fmt != BoxesFormat.cxcywh:
         convert_fn = getattr(boxes_utils, f'{anchors_fmt.value}_to_cxcywh')
         anchors = convert_fn(anchors)
 
-    if boxes_fmt != boxes_fmt.cxcywh:
+    if boxes_fmt != BoxesFormat.cxcywh:
         convert_fn = getattr(boxes_utils, f'{boxes_fmt.value}_to_cxcywh')
         boxes = convert_fn(boxes)
 
@@ -63,7 +63,7 @@ def apply_regressors(anchors: Tensor,
     assert anchors.shape[0] == regressors.shape[0]
 
     # Convert anchors and boxes to cxcywh
-    if anchors_fmt != anchors_fmt.cxcywh:
+    if anchors_fmt != BoxesFormat.cxcywh:
         convert_fn = getattr(boxes_utils, f'{anchors_fmt.value}_to_cxcywh')
         anchors = convert_fn(anchors)
 
