@@ -52,5 +52,5 @@ def load_labelme_annot(annot_path: str,
 
 
 def _get_label_mapping(labels: List[str]) -> Mapping[str, int]:
-    classes = set(labels)
+    classes = sorted(list(set(labels)))
     return {c: i for i, c in enumerate(classes, start=1)}
