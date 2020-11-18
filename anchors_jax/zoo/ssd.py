@@ -1,5 +1,5 @@
 import itertools
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Mapping
 
 import jax
 import jax.numpy as np
@@ -16,7 +16,9 @@ class SSD(hk.Module):
                  num_classes: int,
                  k: Union[int, List[int]],
                  pretrained: bool = False,
-                 pretrained_backbone: bool = True):
+                 pretrained_backbone: bool = True,
+                 initial_weights: Mapping[str, Tensor] = None):
+
         super(SSD, self).__init__()
         self.num_classes = num_classes
         self.k = k
@@ -26,8 +28,10 @@ class SSD(hk.Module):
         self.pretrained_backbone = pretrained_backbone
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
-        if pretrained:
-            bp, ssd_p = SSD_VGG_VOC_weights()
+        if initial_weights is not None:
+            self.ssd_initial_weights = initial_weights
+        elif pretrained:
+            bp, ssd_p = _SSD_VGG_VOC_weights()
             self.backbone_initial_weights = bp
             self.ssd_initial_weights = ssd_p
         elif pretrained_backbone:
@@ -38,8 +42,22 @@ class SSD(hk.Module):
             self.ssd_initial_weights = None
 
     def _head(self, x: Tensor, k: int, name: str) -> Tuple[Tensor, Tensor]:
-        override_weights = (self.ssd_initial_weights is not None and
-                            self.num_classes == 81) # When COCO
+
+        if self.ssd_initial_weights is not None:
+            clf_kernel_name = f'ssd/~_head/head_{name}_cls'
+            clf_kernel = self.ssd_initial_weights[clf_kernel_name]['w']
+            pretrained_classes = clf_kernel.shape[-1] // k
+            override_weights = self.num_classes == pretrained_classes
+
+            if self.num_classes != pretrained_classes:
+                print(f'[Warning] Weights for head {name} are not going to be'
+                      f' overridden since the model was pretrained for '
+                      f'{pretrained_classes} classes, and the current model '
+                      f' has {self.num_classes} classes as output.')
+
+        else:
+            override_weights = False
+
 
         b_init_fn = aj.nn.initializers.PriorProbability(0.01)
         if override_weights:
@@ -181,10 +199,10 @@ class SSD(hk.Module):
         return np.concatenate(clf, axis=1), np.concatenate(reg, axis=1) 
 
 
-def SSD_VGG_VOC_weights():
+def _SSD_VGG_VOC_weights():
     import pickle
 
-    params = pickle.load(open('/content/drive/My Drive/_weights/ssd_coco.jax', 'rb'))
+    params = pickle.load(open('../ssd_coco.jax', 'rb'))
     backbone_params = {k:v for k, v in params.items() if 'vgg' in k}
     backbone_params = {k.replace('ssd/', '').replace('~features/', ''): v
                        for k,v in backbone_params.items()}

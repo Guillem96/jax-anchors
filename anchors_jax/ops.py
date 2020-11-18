@@ -118,7 +118,7 @@ def nms(boxes: Tensor,
         overlap_threshold: float = .5,
         score_threshold: float = .5,
         boxes_fmt: BoxesFormat = BoxesFormat.xyxy) -> Tensor:
-    
+
     """
     Performs Non maxima supperssion with the given boxes
     Selects the boxes with higher score and discards the ones pointing to the
@@ -152,7 +152,6 @@ def nms(boxes: Tensor,
     >>> scores = np.ones(N)
     >>> keep_mask = aj.ops.nms(boxes, scores)
     >>> desired_boxes = boxes[keep_mask]
-
     """
 
     if boxes_fmt != BoxesFormat.xyxy:

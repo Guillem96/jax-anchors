@@ -30,7 +30,7 @@ def compute_regressors(anchors: Tensor, boxes: Tensor,
 
     if standardize:
         mean = [0., 0., 0., 0.]
-        std = [0.2, 0.2, 0.2, 0.2]
+        std = [0.1, 0.1, 0.2, 0.2]
 
         tx_star = (tx_star - mean[0]) / std[0]
         ty_star = (ty_star - mean[1]) / std[1]
@@ -72,7 +72,7 @@ def apply_regressors(anchors: Tensor,
 
     if standardize:
         mean = [0., 0., 0., 0.]
-        std = [0.2, 0.2, 0.2, 0.2]
+        std = [0.1, 0.1, 0.2, 0.2]
 
         tx = tx * std[0] + mean[0]
         ty = ty * std[1] + mean[1]
