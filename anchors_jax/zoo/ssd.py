@@ -29,7 +29,9 @@ class SSD(hk.Module):
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
         if initial_weights is not None:
-            self.ssd_initial_weights = initial_weights
+            bp, ssd_p = _split_bb_ssd_params(initial_weights)
+            self.backbone_initial_weights = bp
+            self.ssd_initial_weights = ssd_p
         elif pretrained:
             bp, ssd_p = _SSD_VGG_VOC_weights()
             self.backbone_initial_weights = bp
@@ -49,15 +51,8 @@ class SSD(hk.Module):
             pretrained_classes = clf_kernel.shape[-1] // k
             override_weights = self.num_classes == pretrained_classes
 
-            if self.num_classes != pretrained_classes:
-                print(f'[Warning] Weights for head {name} are not going to be'
-                      f' overridden since the model was pretrained for '
-                      f'{pretrained_classes} classes, and the current model '
-                      f' has {self.num_classes} classes as output.')
-
         else:
             override_weights = False
-
 
         b_init_fn = aj.nn.initializers.PriorProbability(0.01)
         if override_weights:
@@ -199,14 +194,16 @@ class SSD(hk.Module):
         return np.concatenate(clf, axis=1), np.concatenate(reg, axis=1) 
 
 
-def _SSD_VGG_VOC_weights():
-    import pickle
-
-    params = pickle.load(open('../ssd_coco.jax', 'rb'))
+def _split_bb_ssd_params(params):
     backbone_params = {k:v for k, v in params.items() if 'vgg' in k}
     backbone_params = {k.replace('ssd/', '').replace('~features/', ''): v
                        for k,v in backbone_params.items()}
-
+    
     ssd_params = {k:v for k, v in params.items() if 'vgg' not in k}
-
     return backbone_params, ssd_params
+
+
+def _SSD_VGG_VOC_weights():
+    import pickle
+    params = pickle.load(open('../ssd_coco.jax', 'rb'))
+    return _split_bb_ssd_params(params)

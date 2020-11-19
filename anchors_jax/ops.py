@@ -57,6 +57,7 @@ def iou(anchors: Tensor, boxes: Tensor) -> Tensor:
 def class_wise_nms(boxes: Tensor, 
                    scores: Tensor,
                    classes: Tensor,
+                   n_classes: int,
                    overlap_threshold: float = .5,
                    score_threshold: float = .5,
                    boxes_fmt: BoxesFormat = BoxesFormat.xyxy) -> Tensor:
@@ -74,6 +75,8 @@ def class_wise_nms(boxes: Tensor,
         Boxes scores ranging from 0 to 1 being 1 a higher value
     classes: Tensor of shape [N]
         Boxes classes
+    n_classes: int
+        Number of total classes
     boxes_fmt: BoxesFormat, default xyxy
         Format of the boxes, by default it is set to 
         [x_min, y_min, x_max, y_max]
@@ -91,15 +94,17 @@ def class_wise_nms(boxes: Tensor,
 
     masks = np.zeros(boxes.shape[0], dtype='bool')
     classes = classes.reshape(-1).astype('int32')
-    n_classes = np.max(classes)
 
     # Per class NMS
     # TODO: Should labels always start at 1?
     for c in np.arange(1, n_classes + 1):
         if c == -1:
             continue
-        
+
         mask = (classes == c).reshape(-1)
+        if np.sum(mask) == 0:
+            continue
+
         current_scores = np.where(mask, scores, 0.)
         current_boxes = np.where(np.expand_dims(mask, -1), boxes, 0.)
 
@@ -108,7 +113,7 @@ def class_wise_nms(boxes: Tensor,
                          overlap_threshold=overlap_threshold,
                          score_threshold=score_threshold)
 
-        masks = masks | (boxes_mask & mask)
+        masks = masks | boxes_mask
 
     return masks
 
