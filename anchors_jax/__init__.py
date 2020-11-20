@@ -7,3 +7,4 @@ from . import typing
 from . import viz
 from . import zoo
 from . import io
+from . import augmentation
