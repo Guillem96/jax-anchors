@@ -2,7 +2,17 @@ from typing import Tuple
 
 import jax.numpy as np
 
-from anchors_jax.typing import Tensor
+from anchors_jax.typing import Tensor, BoxesFormat
+
+
+def area(boxes: Tensor, 
+         boxes_fmt: BoxesFormat = BoxesFormat.xyxy) -> Tensor:
+
+    if boxes_fmt != BoxesFormat.cxcywh:
+        convert_fn = getattr('.', f'{boxes_fmt.value}_to_cxcywh')
+        boxes = convert_fn(boxes)
+
+    return boxes[..., 2] * boxes[..., 3]
 
 
 def cxcywh_to_xyxy(boxes: Tensor) -> Tensor:

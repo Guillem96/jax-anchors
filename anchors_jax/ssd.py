@@ -209,12 +209,15 @@ def detect_tag_anchors(
 
     selected_boxes = boxes[selected_boxes_idx]
     selected_labels = labels[selected_boxes_idx].reshape(-1).astype('float32')
+    areas = boxes_utils.area(selected_boxes)
 
     # Non used labels are ignored with -1
     cls_labels = np.zeros((anchors.shape[0], )) - 1
     cls_labels = np.where(negative_mask, 0., cls_labels)
     cls_labels = np.where(positive_mask, selected_labels, cls_labels)
     cls_labels = np.where(selected_labels == -1, -1, cls_labels) # Padding labels
+    cls_labels = np.where(areas < 0.03, -1, cls_labels) # Small boxes
+
     cls_labels = cls_labels.reshape(-1, 1)
 
     # Start with the regressors

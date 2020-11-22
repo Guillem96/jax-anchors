@@ -2,12 +2,14 @@ from enum import Enum
 from typing import Any, Callable, List, Union, Tuple
 
 import numpy as onp
+
+import jax
 import jax.numpy as np
 
 from PIL import Image
 
 
-Tensor = Union[onp.ndarray, np.ndarray]
+Tensor = Union[onp.ndarray, np.ndarray, jax.xla.DeviceArray]
 Image = Union[Tensor, 'Image']
 
 Box = Union[Tensor, List[int], Tuple[int, int, int, int]]
