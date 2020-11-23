@@ -28,7 +28,10 @@ def random_lr_flip(rng: jax.random.PRNGKey,
     Tuple[Tensor, Tensor]
         Flipped image and boxes
     """
-    if jax.random.uniform(rng) < prob:
+
+    def lr_flip(o):
+        image, boxes = o
+        
         image = np.fliplr(image)
 
         # Flip the box
@@ -43,19 +46,25 @@ def random_lr_flip(rng: jax.random.PRNGKey,
         boxes = np.stack([x1, y1, x2, y2], axis=-1)
         boxes = boxes.reshape(-1, 4)
 
-    return image, boxes
+        return image, boxes
 
+    return jax.lax.cond(jax.random.uniform(rng) < prob,
+                        lr_flip, lambda o: o,
+                        (image, boxes))
 
 def rgb_to_grayscale(rng: jax.random.PRNGKey,
                      image: Tensor,
                      prob: float = .5) -> Tensor:
 
-    if jax.random.uniform(rng) < prob:
+    def to_gray(image):
+        dtype = image.dtype
         rgb_weights = np.array([0.2989, 0.5870, 0.1140]).reshape(1, 1, 3)
         image = np.sum(rgb_weights * image, axis=-1, keepdims=True)
         image = np.repeat(image, 3, axis=-1)
+        return image.astype(dtype)
 
-    return image
+    return jax.lax.cond(jax.random.uniform(rng) < prob,
+                        to_gray, lambda o: o, image)
 
 
 def random_patch(rng: jax.random.PRNGKey,
@@ -73,6 +82,9 @@ def random_patch(rng: jax.random.PRNGKey,
     x2 = x2 * w
     y1 = y1 * h
     y2 = y2 * h
+
+    bw = x2 - x1
+    bh = y2 - y1
 
     cx = (x1 + x2) / 2.
     cy = (y1 + y2) / 2.
@@ -98,19 +110,24 @@ def random_patch(rng: jax.random.PRNGKey,
                            minval=0, 
                            maxval=h - p_h)
 
-    new_image = image[y.astype('int32'): (y + p_h).astype('int32'), 
-                      x.astype('int32'): (x + p_w).astype('int32')]
+    new_image = jax.lax.dynamic_slice(image, 
+        [y.astype('int32').item(), x.astype('int32').item(), 0],
+        [p_h.astype('int32').item(), p_w.astype('int32').item(), 3])
 
     keep_boxes = (cx > x) & (cx < (x + p_w))
     keep_boxes = keep_boxes & (cy > y) & (cy < (y + p_h))
-    # keep_boxes = np.expand_dims(keep_boxes, -1)
     keep_boxes = np.repeat(keep_boxes, 4, axis=-1)
     keep_boxes = keep_boxes.astype('float32')
 
-    x1 = np.clip(x1 - x, a_min=0, a_max=p_w) / p_w
-    x2 = np.clip(x2 - x, a_min=0, a_max=p_w) / p_w
-    y1 = np.clip(y1 - y, a_min=0, a_max=p_h) / p_h
-    y2 = np.clip(y2 - y, a_min=0, a_max=p_h) / p_h
+    x1 = x1 - x
+    x2 = x1 + bw
+    y1 = y1 - y
+    y2 = y1 + bh
+
+    x1 = np.clip(x1, a_min=0, a_max=p_w) / p_w
+    x2 = np.clip(x2, a_min=0, a_max=p_w) / p_w
+    y1 = np.clip(y1, a_min=0, a_max=p_h) / p_h
+    y2 = np.clip(y2, a_min=0, a_max=p_h) / p_h
 
     boxes = np.concatenate([x1, y1, x2, y2], axis=-1)
 
