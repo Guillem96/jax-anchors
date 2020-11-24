@@ -38,7 +38,7 @@ def random_lr_flip(rng: jax.random.PRNGKey,
         x1, y1, x2, y2 = np.split(boxes, 4, axis=-1)
 
         bb_w = x2 - x1
-        delta_W = np.expand_dims(boxes[:, 0], axis=-1)
+        delta_W = np.expand_dims(boxes[..., 0], axis=-1)
 
         x1 = 1. - delta_W - bb_w
         x2 = 1. - delta_W
@@ -51,6 +51,7 @@ def random_lr_flip(rng: jax.random.PRNGKey,
     return jax.lax.cond(jax.random.uniform(rng) < prob,
                         lr_flip, lambda o: o,
                         (image, boxes))
+
 
 def rgb_to_grayscale(rng: jax.random.PRNGKey,
                      image: Tensor,
@@ -70,12 +71,13 @@ def rgb_to_grayscale(rng: jax.random.PRNGKey,
 def random_patch(rng: jax.random.PRNGKey,
                  image: Tensor,
                  boxes: Tensor,
+                 crop_size: Tuple[int, int] = (300, 300),
                  min_patch_size: float = .5,
                  max_patch_size: float = 1.,
                  min_aspect_ratio: float = .5,
                  max_aspect_ratio: float = 2.) -> Tuple[Tensor, Tensor]:
 
-    h, w, _ = image.shape
+    h, w, c = image.shape
 
     x1, y1, x2, y2 = np.split(boxes, 4, axis=-1)
     x1 = x1 * w
@@ -101,6 +103,9 @@ def random_patch(rng: jax.random.PRNGKey,
 
     p_h = h * patch_ratio
     p_w = p_h * ar
+    
+    p_h = np.clip(p_h, a_max=h)
+    p_w = np.clip(p_h, a_max=w)
 
     x = jax.random.uniform(x_loc_key, 
                            minval=0, 
@@ -110,9 +115,8 @@ def random_patch(rng: jax.random.PRNGKey,
                            minval=0, 
                            maxval=h - p_h)
 
-    new_image = jax.lax.dynamic_slice(image, 
-        [y.astype('int32').item(), x.astype('int32').item(), 0],
-        [p_h.astype('int32').item(), p_w.astype('int32').item(), 3])
+    crop_box = np.array([x, y, x + p_w, y + p_h]).astype('int32')
+    new_image = _crop_and_resize(image, crop_box, crop_size + (c,))
 
     keep_boxes = (cx > x) & (cx < (x + p_w))
     keep_boxes = keep_boxes & (cy > y) & (cy < (y + p_h))
@@ -133,3 +137,13 @@ def random_patch(rng: jax.random.PRNGKey,
 
     return new_image, boxes * keep_boxes
 
+
+def _crop_and_resize(image: Tensor, 
+                     box: Tensor, 
+                     crop_size: Tuple[int, int, int]) -> Tensor:
+
+    new_image = jax.lax.dynamic_slice(image, 
+        np.array([box[1], box[0], 0]).reshape(3),
+        np.array([box[3] - box[1], box[2] - box[0], 3]).reshape(3))
+
+    return jax.image.resize(new_image, crop_size, 'bilinear')

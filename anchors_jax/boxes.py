@@ -9,7 +9,9 @@ def area(boxes: Tensor,
          boxes_fmt: BoxesFormat = BoxesFormat.xyxy) -> Tensor:
 
     if boxes_fmt != BoxesFormat.cxcywh:
-        convert_fn = getattr('.', f'{boxes_fmt.value}_to_cxcywh')
+        import sys
+        convert_fn = getattr(sys.modules[__name__], 
+                             f'{boxes_fmt.value}_to_cxcywh')
         boxes = convert_fn(boxes)
 
     return boxes[..., 2] * boxes[..., 3]
