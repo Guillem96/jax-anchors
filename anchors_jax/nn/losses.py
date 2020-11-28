@@ -98,7 +98,7 @@ def ssd_loss(cls_true: Tensor,
     # Filter only the positive ones and sum the batch loss to obtain a 
     # tensor of shape [batch_size] containing the lost for each batch image
     pos_cls_loss = cls_loss * positive_mask.reshape(bs, -1)
-    pos_cls_loss = np.sum(pos_cls_loss)
+    pos_cls_loss = np.sum(pos_cls_loss, axis=-1)
 
     # Pick the negatives' sample loss and compute the mask to keep only the
     # highest loss samples
