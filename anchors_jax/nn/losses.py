@@ -95,7 +95,7 @@ def ssd_loss(cls_true: Tensor,
     # Apply sparse categorical cross entropy to all samples
     cls_loss = jax.vmap(sparse_cross_entropy)(cls_true, cls_pred)
 
-    # Filter only the positive ones and sum the batch loss to obtain a 
+    # Finally the positive ones and sum the batch loss to obtain a 
     # tensor of shape [batch_size] containing the lost for each batch image
     pos_cls_loss = cls_loss * positive_mask.reshape(bs, -1)
     pos_cls_loss = np.sum(pos_cls_loss, axis=-1)
@@ -112,7 +112,7 @@ def ssd_loss(cls_true: Tensor,
 
     # Sum positive and negative losses and normalize the sum over batch dividing
     # by the number of positives
-    cls_loss = pos_cls_loss + neg_cls_loss / np.maximum(1., n_positives)
+    cls_loss = (pos_cls_loss + neg_cls_loss) / np.maximum(1., n_positives)
 
     # We only compute the smooth l1 loss for positive samples
     reg_loss = smooth_l1(reg_true, reg_pred)
@@ -146,3 +146,4 @@ def _ssd_compute_negative_mask(negative_losses: Tensor,
 
     neg_top_mask = 1 - neg_top_mask.cumsum(-1)
     return neg_top_mask.astype('float32')
+

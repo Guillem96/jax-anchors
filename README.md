@@ -31,6 +31,37 @@ in question, and is associated with a scale and aspect
 ratio.  By default we use 3 scales and
 3 aspect ratios, yielding $k = 9$ anchors.
 
+## What does Anchors JAX provide? ✨
+
+- Code to generate anchor or prior boxes for multiple algorithms (SSD, FasterRCNN, RetinaNet, etc.)
+- Pertrained models ready to train along with the optimizable loss function to finetune them.
+- Object detection data augmentation.
+- Complex operations such as Non Maxima Supression and IoU
+- Utility functions to work with object detection tasks.
+
+### Pretrained models
+
+Anchors JAX implements some of the most famous models and also provides 
+pretrained weights for them.
+
+```python
+import jax
+import haiku as hk
+import anchors_jax as aj
+
+def forward(im):
+  # By default coco weights
+  net = aj.zoo.SSD(pretrained=True,
+                   num_classes=81, 
+                   k=[4, 6, 6, 6, 4, 4])
+  return net(im)
+
+
+rng = jax.random.PRNGKey(0)
+ssd = hk.without_apply_rng(hk.transform(forward))
+params = ssd.init(rng, jax.random.uniform(rng, shape=(1, 300, 300, 3)))
+```
+
 ## Examples
 
 ```python

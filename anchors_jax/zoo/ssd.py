@@ -1,4 +1,8 @@
+# -*- coding: utf-8 -*-
+
+import pickle
 import itertools
+from pathlib import Path
 from typing import List, Tuple, Union, Mapping
 
 import jax
@@ -29,6 +33,11 @@ class SSD(hk.Module):
         self.xavier_init_fn = aj.nn.initializers.XavierUniform()
 
         if initial_weights is not None:
+            if isinstance(initial_weights, str):
+                initial_weights = Path(initial_weights)
+                assert initial_weights.exists()
+                initial_weights = pickle.load(initial_weights.open('rb'))
+
             bp, ssd_p = _split_bb_ssd_params(initial_weights)
             self.backbone_initial_weights = bp
             self.ssd_initial_weights = ssd_p
@@ -194,16 +203,26 @@ class SSD(hk.Module):
         return np.concatenate(clf, axis=1), np.concatenate(reg, axis=1) 
 
 
+################################################################################
+
 def _split_bb_ssd_params(params):
     backbone_params = {k:v for k, v in params.items() if 'vgg' in k}
     backbone_params = {k.replace('ssd/', '').replace('~features/', ''): v
                        for k,v in backbone_params.items()}
-    
+
     ssd_params = {k:v for k, v in params.items() if 'vgg' not in k}
     return backbone_params, ssd_params
 
 
 def _SSD_VGG_VOC_weights():
-    import pickle
-    params = pickle.load(open('../ssd_coco.jax', 'rb'))
+    import gdown
+
+    url = 'https://drive.google.com/uc?id=1GP6i9lcEqK3mOgr7soxruLhWpITxShge'
+    output = Path.home() / '.anchors-jax/ssd-coco.jax'
+    output.parent.mkdir(exist_ok=True, parents=True)
+    gdown.cached_download(url, str(output))
+
+    params = pickle.load(output.open('rb'))
+
     return _split_bb_ssd_params(params)
+

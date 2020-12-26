@@ -103,7 +103,7 @@ def random_patch(rng: jax.random.PRNGKey,
 
     p_h = h * patch_ratio
     p_w = p_h * ar
-    
+
     p_h = np.clip(p_h, a_max=h)
     p_w = np.clip(p_h, a_max=w)
 
