@@ -4,7 +4,7 @@ Anchors JAX is a simple Python package fully implemented with JAX to simplify th
 of anchors for object detection models such as [Faster-RCNN](https://arxiv.org/abs/1506.01497), 
 [SSD](https://arxiv.org/abs/1512.02325), [RetinaNet](https://arxiv.org/abs/1708.02002), etc.
 
-## What anchors are? ⚓
+## Anchors? What are they? ⚓
 
 The first Deep Learning based Object detectors, used to depend on external modules to
 generate region proposals (image regions that probably contain objects of interest). 
